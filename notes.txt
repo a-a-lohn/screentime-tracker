@@ -1,0 +1,6 @@
+steps to push using ssh:
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/screentime_tracker_rsa -- NECESSARY??
+git push
+
+(verify connection with ssh -T git@github.com)
