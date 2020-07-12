@@ -1,0 +1,5 @@
+**/*.pyc
+**/.pylintrc
+**/__pycache__/
+**/flask_session/
+**/.sass-cache/
