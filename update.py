@@ -1,8 +1,8 @@
 # run this code to generate an updated graph of screentime usage
 
 from openpyxl import load_workbook
-import re
-import math
+from re import search
+from math import floor
 from datetime import date
 
 def sheetDates(sheet_dates, sheet_names):
@@ -11,7 +11,7 @@ def sheetDates(sheet_dates, sheet_names):
     sheet_names = (name for name in sheet_names)
     for name in sheet_names:
         # having trouble using backreferences, just repeating the same group instead
-        if re.search("^\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}$", name):
+        if search("^\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}$", name):
             # make sure all sheets have been generated on Fridays, if not throw an Exception
             if date(int(name[6:10]), int(name[3:5]), int(name[0:2])).weekday() != 4:
                 raise Exception("Not all sheets were generated on a Friday")
@@ -22,7 +22,7 @@ def sheetDates(sheet_dates, sheet_names):
 def intToExcelCol(num):
     if num <= 26:
         return str(chr(num+64))
-    first = chr(math.floor(num / 26) + 64)
+    first = chr(floor(num / 26) + 64)
     second = chr(num % 27 + 65)
     return str(first) + str(second)
 
@@ -33,7 +33,7 @@ def main():
     # get list of (date, name) tuples for each sheet
     sheet_dates = []
     sheetDates(sheet_dates, wb.sheetnames)
-    # sort dates from the least recent one to the most
+    # sort dates from the earliest to the most recent
     sheet_dates.sort(key=lambda tup: tup[1])
 
     '''
@@ -60,13 +60,19 @@ def main():
     
     wb.active = wb.get_sheet_by_name("Data")
     ws = wb.active
-    # the following string represents the range of cells representing the app column names in the Data sheet
-    cell_range_str = "F1:" + intToExcelCol(ws.max_column) + "1"
+    # the following string represents the range of cells representing the app names in the Data sheet
+    #cell_range_str = "J2:" + intToExcelCol(ws.max_column) + "2"
+    app_names_label = wb.defined_names['app_names']
+    dests = app_names_label.destinations
+    _, coord = next(dests)
+        
     # Strangely enough, ws[cell_range_str] returns a single tuple with all the cells representing app names
     # inside the first inner tuple
-    app_names_present = ws[cell_range_str][0]
+    app_names_in_data = ws[coord][0]
+    for app in app_names_in_data:
+        print(app.internal_value)
     # go to the least recent sheet of data to be added first
-    for sheet in sheet_dates:
+    '''for sheet in sheet_dates:
         wb.active = wb.get_sheet_by_name(sheet[1])
         ws = wb.active
         # max_row row value is a total row
@@ -78,11 +84,11 @@ def main():
         wb.active = wb.get_sheet_by_name("Data")
         ws = wb.active
         for app in apps:
-           if app not in app_names_present:
+           if app not in app_names_in_data:
                print(intToExcelCol(ws.max_column+1) + "1")
                ws[intToExcelCol(ws.max_column+1) + "1"] = app
 
-    '''TODO:
+    TODO:
     -fix intToExcelCol function
     -figure out how to get data to appear in spreadsheet when added
     -add data from app-generated sheets to Data table column by column, adding new columns when necessary
