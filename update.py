@@ -1,33 +1,43 @@
 # run this code to generate an updated graph of screentime usage
 
-#import os
-
-#from flask import Flask
-#from models import db, Book
-import xlrd
+from openpyxl import load_workbook
 import re
 from datetime import date
 
 def main():
     path = "screentime_tracker/HistoryReport.xlsx"
     # wb is short for workbook
-    wb = xlrd.open_workbook(path)
-    sheet_names = (name for name in wb.sheet_names())
+    wb = load_workbook(path)
+
+    # get all sheets generated from Samsung app and extract the dates from their sheet titles
+
+    sheet_names = (name for name in wb.sheetnames)
     sheet_dates = []
     for name in sheet_names:
-        # having trouble using backreferences
+        # having trouble using backreferences, just repeating the same group instead
         if re.search("^\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}$", name):
             # append date object from sheet name. Date objects are in the form y,m,d
             sheet_dates.append(date(int(name[6:10]), int(name[3:5]), int(name[0:2])))
     # sort dates from the most recent one to the least
     sheet_dates.sort(reverse=True)
-    data_sheet = wb.sheet_by_name("Data")
-    last_row = data_sheet.row_values(data_sheet.nrows-1, start_colx=1, end_colx=4)
-    # indices correspond to labelling of d, m, y in table on Data sheet
-    most_recent_data_date = date(int(last_row[2]), int(last_row[1]), int(last_row[0]))
+
+    # go to the Data sheet
+    wb.active = wb.get_sheet_by_name("Data")
+    ws = wb.active
+
+    # get the most recent date recorded in Data
+
+    # the following string represents the range of cells representing the most recent date in the Data sheet
+    cell_range_str = "B" + str(ws.max_row) + ":" + "D" + str(ws.max_row)
+    # convert to a date. Strangely enough, ws[cell_range_str] returns a single tuple with a triple tuple
+    # inside that has the 3 cell values corresponding to the date
+    y, m, d = ws[cell_range_str][0]
+    most_recent_data_date = date(y.internal_value, m.internal_value, d.internal_value)
+
+
     get_later_date = (date for date in sheet_dates)
     i = -1
-    while get_later_date.next() > most_recent_data_date:
+    while next(get_later_date) > most_recent_data_date:
         i = i+1
     
 if __name__ == "__main__":
