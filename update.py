@@ -2,14 +2,13 @@
 
 from openpyxl import load_workbook
 import re
+import math
 from datetime import date
 
-def sheetDates(sheet_names):
+def sheetDates(sheet_dates, sheet_names):
     # creates a tupled list of all sheets generated from Samsung app in the form (date, name), where
     # date comes from their sheet names and name is the sheet name
-
     sheet_names = (name for name in sheet_names)
-    sheet_dates = []
     for name in sheet_names:
         # having trouble using backreferences, just repeating the same group instead
         if re.search("^\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}$", name):
@@ -18,18 +17,25 @@ def sheetDates(sheet_names):
                 raise Exception("Not all sheets were generated on a Friday")
             # append date object from sheet name with the sheet name. Date objects are in the form y,m,d
             sheet_dates.append((date(int(name[6:10]), int(name[3:5]), int(name[0:2])), name))
-    # sort dates from the most recent one to the least
-    return sheet_dates.sort(key=lambda tup: tup[1], reverse=True)
+
+# FIX
+def intToExcelCol(num):
+    if num <= 26:
+        return str(chr(num+64))
+    first = chr(math.floor(num / 26) + 64)
+    second = chr(num % 27 + 65)
+    return str(first) + str(second)
 
 def main():
     path = "screentime_tracker/HistoryReport.xlsx"
     # wb is short for workbook
     wb = load_workbook(path)
     # get list of (date, name) tuples for each sheet
-    sheet_dates = sheetDates(wb.sheetnames)
-    # go to the Data sheet
-    wb.active = wb.get_sheet_by_name("Data")
-    ws = wb.active
+    sheet_dates = []
+    sheetDates(sheet_dates, wb.sheetnames)
+    # sort dates from the least recent one to the most
+    sheet_dates.sort(key=lambda tup: tup[1])
+
     '''
     # get the most recent date recorded in Data
 
@@ -51,14 +57,37 @@ def main():
     '''
     # MOST OF THE ABOVE CODE CAN BE REMOVED IF I JUST ADD A FEATURE AT THE END OF THIS CODE TO REMOVE SHEETS
     # WITH DATA THAT HAS ALREADY BEEN ADDED
-
-
+    
+    wb.active = wb.get_sheet_by_name("Data")
+    ws = wb.active
+    # the following string represents the range of cells representing the app column names in the Data sheet
+    cell_range_str = "F1:" + intToExcelCol(ws.max_column) + "1"
+    # Strangely enough, ws[cell_range_str] returns a single tuple with all the cells representing app names
+    # inside the first inner tuple
+    app_names_present = ws[cell_range_str][0]
+    # go to the least recent sheet of data to be added first
+    for sheet in sheet_dates:
+        wb.active = wb.get_sheet_by_name(sheet[1])
+        ws = wb.active
+        # max_row row value is a total row
+        get_cols = ws.iter_cols(min_row=0, max_row=ws.max_row-1, values_only=True)
+        # dealing with column of apps
+        # skip over first cell, which is blank
+        apps = next(get_cols)[1:]
+        # change over to Data sheet to write stuff in
+        wb.active = wb.get_sheet_by_name("Data")
+        ws = wb.active
+        for app in apps:
+           if app not in app_names_present:
+               print(intToExcelCol(ws.max_column+1) + "1")
+               ws[intToExcelCol(ws.max_column+1) + "1"] = app
 
     '''TODO:
+    -fix intToExcelCol function
+    -figure out how to get data to appear in spreadsheet when added
     -add data from app-generated sheets to Data table column by column, adding new columns when necessary
     -format a Total column to capture total time from all app columns
     -delete sheets with added data
-
 
     #remove sheets from sheet_dates
     '''
