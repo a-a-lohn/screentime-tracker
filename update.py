@@ -74,16 +74,18 @@ def main():
     # MOST OF THE ABOVE CODE CAN BE REMOVED IF I JUST ADD A FEATURE AT THE END OF THIS CODE TO REMOVE SHEETS
     # WITH DATA THAT HAS ALREADY BEEN ADDED
     
-    # get a tuple with all the app cells in the Data sheet
-    app_names_in_data = defName('app_names')
     # assuming order of time_info cells is Season, DOTW, Date but not assuming their coordinates in the sheet
     time_info_cells = defName('time_info')
+    # get a tuple with all the app cells in the Data sheet
+    app_names_in_data = defName('app_names')
+    # make a list for app values
+    app_values_in_data = [app.value for app in app_names_in_data]
 
-    wb.active = wb.get_sheet_by_name("Data")
-    ws = wb.active
+    #wb.active = wb.get_sheet_by_name("Data")
+    #ws = wb.active
     # first empty row that will be populated in Data sheet
     top_row = ws.max_row + 1
-    
+
     season = "Summer"
     # how can I take in input?
     #season = input("What season is it? If you do not enter one, the last season in the table will be used.")
@@ -105,24 +107,24 @@ def main():
                 for i in range(0,7):
                     ws.cell(column=cell.column, row=top_row+i, value=sheet[0]-timedelta(days=6-i))
 
-    wb.save(path)
-
-    '''
-        # go to the least recent sheet of data to be added first
+        # iterate over sheets from the least recent sheet the most
         wb.active = wb.get_sheet_by_name(sheet[1])
         ws = wb.active
-        # max_row row value is a total row
-        get_cols = ws.iter_cols(min_row=0, max_row=ws.max_row-1, values_only=True)
-        # dealing with column of apps
-        # skip over first cell, which is blank
-        apps = next(get_cols)[1:]
+        # max_row row value is a total row, so skip it
+        get_cols = ws.iter_cols(min_row=0, max_row=ws.max_row-1)#, values_only=True)
+        # dealing with column of apps. Skip over first cell, which is blank
+        app_names_in_sheet = next(get_cols)[1:]
         # change over to Data sheet to write stuff in
         wb.active = wb.get_sheet_by_name("Data")
         ws = wb.active
-        for app in apps:
-           if app not in app_names_in_data:
-               print(intToExcelCol(ws.max_column+1) + "1")
-               ws[intToExcelCol(ws.max_column+1) + "1"] = app'''
+        for app in app_names_in_sheet:
+            #*** deal with case of new apps later***
+            if app.value in app_values_in_data:
+                #print(app_names_in_data[app_names_in_data.index(app)].value)
+                ws.cell(column=app_names_in_data[app_values_in_data.index(app.value)].column, row=top_row+i, value="done")
+
+    wb.save(path)
+
     '''
     TODO:
     -add data from app-generated sheets to Data table column by column, adding new columns when necessary
