@@ -9,11 +9,11 @@ path = "screentime_tracker/HistoryReport.xlsx"
 # wb is short for workbook
 wb = load_workbook(path)
 
-def sheetDates(sheet_dates, sheet_names):
+def sheetDates(sheet_dates):
     # creates a tupled list of all sheets generated from Samsung app in the form (date, name), where
     # date comes from their sheet names and name is the sheet name
     
-    sheet_names = (name for name in sheet_names)
+    sheet_names = (name for name in wb.sheetnames)
     for name in sheet_names:
         # having trouble using backreferences, just repeating the same group instead
         if search("^\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}$", name):
@@ -48,7 +48,7 @@ def intToExcelCol(num):
 def main():
     # get list of (date, name) tuples for each sheet
     sheet_dates = []
-    sheetDates(sheet_dates, wb.sheetnames)
+    sheetDates(sheet_dates)
     # sort dates from the earliest to the most recent
     sheet_dates.sort(key=lambda tup: tup[1])
 
@@ -81,8 +81,8 @@ def main():
     # make a list for app values
     app_values_in_data = [app.value for app in app_names_in_data]
 
-    #wb.active = wb.get_sheet_by_name("Data")
-    #ws = wb.active
+    wb.active = wb.get_sheet_by_name("Data")
+    ws = wb.active
     # first empty row that will be populated in Data sheet
     top_row = ws.max_row + 1
 
@@ -114,14 +114,32 @@ def main():
         get_cols = ws.iter_cols(min_row=0, max_row=ws.max_row-1)#, values_only=True)
         # dealing with column of apps. Skip over first cell, which is blank
         app_names_in_sheet = next(get_cols)[1:]
-        # change over to Data sheet to write stuff in
-        wb.active = wb.get_sheet_by_name("Data")
-        ws = wb.active
         for app in app_names_in_sheet:
             #*** deal with case of new apps later***
             if app.value in app_values_in_data:
-                #print(app_names_in_data[app_names_in_data.index(app)].value)
-                ws.cell(column=app_names_in_data[app_values_in_data.index(app.value)].column, row=top_row+i, value="done")
+                # go to sheet to get values for time spent, getting all 7 values for a given app per iteration
+                wb.active = wb.get_sheet_by_name(sheet[1])
+                ws = wb.active
+
+
+                # go back to Data sheet to write stuff in
+                wb.active = wb.get_sheet_by_name("Data")
+                ws = wb.active
+                #print(ws.cell(column=app_names_in_data[app_values_in_data.index(app.value)].column, row=top_row+0).value)
+
+                for i in range(0,7):
+                    # if the top cell of the column to which we are about to write is empty, go ahead
+                    if ws.cell(column=app_names_in_data[app_values_in_data.index(app.value)].column, row=top_row+i).value is None:
+                        # write in the time data under the column header corresponding to the app name, over 7 rows
+                        ws.cell(column=app_names_in_data[app_values_in_data.index(app.value)].column, row=top_row+i, value="done")
+                    # the cell will not be empty if the app name is a duplicate. In this case, find it and
+                    # write data over there instead
+                    else:
+                        if app_values_in_data.count(app.value) > 1:
+                            # insert data at next occurrence of app name; start searching through app list starting
+                            # one position after first occurrence
+                            ws.cell(column=app_names_in_data[app_values_in_data.index(app.value, app_values_in_data.index(app.value)+1)].column, row=top_row+i, value="done")
+                        # else: ***cae of a new app***
 
     wb.save(path)
 
