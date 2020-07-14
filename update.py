@@ -23,15 +23,15 @@ def sheetDates(sheet_dates, sheet_names):
             # append date object from sheet name with the sheet name. Date objects are in the form y,m,d
             sheet_dates.append((date(int(name[6:10]), int(name[3:5]), int(name[0:2])), name))
 
-def appNames():
-    # returns a tuple containing all the app names present as column headers in the Data sheet
+def defName(defined_name_in_wb):
+    # returns a tuple containing all the cell values present in the Data sheet in a defined name
     # sets wb.active to the Data sheet
 
     wb.active = wb.get_sheet_by_name("Data")
     ws = wb.active
-    app_names_defined = wb.defined_names['app_names']
+    defined = wb.defined_names[defined_name_in_wb]
     # dests is a tuple generator of (worksheet title, cell range)
-    dests = app_names_defined.destinations
+    dests = defined.destinations
     _, coord = next(dests)
     # Strangely enough, ws[cell_range_str] returns a single tuple with all the cells representing app names
     # inside the first inner tuple
@@ -75,19 +75,15 @@ def main():
     # WITH DATA THAT HAS ALREADY BEEN ADDED
     
     # get a tuple with all the app cells in the Data sheet
-    app_names_in_data = appNames()
-    #for app in app_names_in_data:
-    #    print(app.internal_value)
+    app_names_in_data = defName('app_names')
+    # assuming order of time_info cells is Season, DOTW, Date but not assuming their coordinates in the sheet
+    time_info_cells = defName('time_info')
+
     wb.active = wb.get_sheet_by_name("Data")
     ws = wb.active
     # first empty row that will be populated in Data sheet
     top_row = ws.max_row + 1
-    time_info_defined = wb.defined_names['time_info']
-    # dests is a tuple generator of (worksheet title, cell range)
-    dests = time_info_defined.destinations
-    _, coord = next(dests)
-    # assuming order of time_info cells is Season, DOTW, Date but not assuming their coordinates in the sheet
-    time_info_cells = ws[coord][0]
+    
     season = "Summer"
     # how can I take in input?
     #season = input("What season is it? If you do not enter one, the last season in the table will be used.")
