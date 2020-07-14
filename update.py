@@ -3,7 +3,11 @@
 from openpyxl import load_workbook
 from re import search
 from math import floor
-from datetime import date
+from datetime import date, timedelta
+
+path = "screentime_tracker/HistoryReport.xlsx"
+# wb is short for workbook
+wb = load_workbook(path)
 
 def sheetDates(sheet_dates, sheet_names):
     # creates a tupled list of all sheets generated from Samsung app in the form (date, name), where
@@ -19,14 +23,12 @@ def sheetDates(sheet_dates, sheet_names):
             # append date object from sheet name with the sheet name. Date objects are in the form y,m,d
             sheet_dates.append((date(int(name[6:10]), int(name[3:5]), int(name[0:2])), name))
 
-def appNames(wb):
+def appNames():
     # returns a tuple containing all the app names present as column headers in the Data sheet
     # sets wb.active to the Data sheet
 
     wb.active = wb.get_sheet_by_name("Data")
     ws = wb.active
-    # the following string represents the range of cells representing the app names in the Data sheet
-    #cell_range_str = "J2:" + intToExcelCol(ws.max_column) + "2"
     app_names_defined = wb.defined_names['app_names']
     # dests is a tuple generator of (worksheet title, cell range)
     dests = app_names_defined.destinations
@@ -44,9 +46,6 @@ def intToExcelCol(num):
     return str(first) + str(second)
 
 def main():
-    path = "screentime_tracker/HistoryReport.xlsx"
-    # wb is short for workbook
-    wb = load_workbook(path)
     # get list of (date, name) tuples for each sheet
     sheet_dates = []
     sheetDates(sheet_dates, wb.sheetnames)
@@ -75,11 +74,45 @@ def main():
     # MOST OF THE ABOVE CODE CAN BE REMOVED IF I JUST ADD A FEATURE AT THE END OF THIS CODE TO REMOVE SHEETS
     # WITH DATA THAT HAS ALREADY BEEN ADDED
     
-    app_names_in_data = appNames(wb)
-    for app in app_names_in_data:
-        print(app.internal_value)
-    # go to the least recent sheet of data to be added first
+    # get a tuple with all the app cells in the Data sheet
+    app_names_in_data = appNames()
+    #for app in app_names_in_data:
+    #    print(app.internal_value)
+    wb.active = wb.get_sheet_by_name("Data")
+    ws = wb.active
+    # first empty row that will be populated in Data sheet
+    top_row = ws.max_row + 1
+    time_info_defined = wb.defined_names['time_info']
+    # dests is a tuple generator of (worksheet title, cell range)
+    dests = time_info_defined.destinations
+    _, coord = next(dests)
+    # assuming order of time_info cells is Season, DOTW, Date but not assuming their coordinates in the sheet
+    time_info_cells = ws[coord][0]
+    season = "Summer"
+    # how can I take in input?
+    #season = input("What season is it? If you do not enter one, the last season in the table will be used.")
+    #if not season:
+    #    season = 
+    days = ["Sa", "Su", "M", "Tu", "W", "Th", "F"]
     for sheet in sheet_dates:
+        # start by adding the time info
+        wb.active = wb.get_sheet_by_name("Data")
+        ws = wb.active
+        for cell in time_info_cells:
+            if cell.value == "Season":
+                for i in range(0,7):
+                    ws.cell(column=cell.column, row=top_row+i, value=season)
+            if cell.value == "DOTW":
+                for i, day in zip(range(0,7), days):
+                    ws.cell(column=cell.column, row=top_row+i, value=day)
+            if cell.value == "Date":
+                for i in range(0,7):
+                    ws.cell(column=cell.column, row=top_row+i, value=sheet[0]-timedelta(days=6-i))
+
+    wb.save(path)
+
+    '''
+        # go to the least recent sheet of data to be added first
         wb.active = wb.get_sheet_by_name(sheet[1])
         ws = wb.active
         # max_row row value is a total row
@@ -93,11 +126,9 @@ def main():
         for app in apps:
            if app not in app_names_in_data:
                print(intToExcelCol(ws.max_column+1) + "1")
-               ws[intToExcelCol(ws.max_column+1) + "1"] = app
+               ws[intToExcelCol(ws.max_column+1) + "1"] = app'''
     '''
     TODO:
-    -fix intToExcelCol function
-    -figure out how to get data to appear in spreadsheet when added
     -add data from app-generated sheets to Data table column by column, adding new columns when necessary
     -format a Total column to capture total time from all app columns
     -delete sheets with added data
