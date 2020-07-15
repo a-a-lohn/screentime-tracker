@@ -1,9 +1,9 @@
 # run this code to generate an updated graph of screentime usage
 
 from openpyxl import load_workbook
-from re import search
+from re import search, findall
 from math import floor
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 path = "screentime_tracker/HistoryReport.xlsx"
 # wb is short for workbook
@@ -37,6 +37,19 @@ def defName(defined_name_in_wb):
     # inside the first inner tuple
     return ws[coord][0]
 
+def convertToTime(time_str):
+    time_str = str(time_str)
+    h,m,s = 0,0,0
+    # if unit of time (h/m/s) is not present in cell (i.e. was not used long enough or was used for exactly
+    # one minute, perhaps), mark as 0
+    if search("\d{1,2}h", time_str):
+        h = int(findall("\d{1,2}h", time_str)[0][:-1])
+    if search("\d{1,2}m", time_str):
+        m = int(findall("\d{1,2}m", time_str)[0][:-1])
+    if search("\d{1,2}s", time_str):
+        s = int(findall("\d{1,2}s", time_str)[0][:-1])
+    return time(h,m,s)
+    
 # SHOULD NOT NEED
 def intToExcelCol(num):
     if num <= 26:
@@ -111,35 +124,40 @@ def main():
         wb.active = wb.get_sheet_by_name(sheet[1])
         ws = wb.active
         # max_row row value is a total row, so skip it
+
+
+        #CHANGE THIS BACK TO VALUES ONLY
         get_cols = ws.iter_cols(min_row=0, max_row=ws.max_row-1)#, values_only=True)
         # dealing with column of apps. Skip over first cell, which is blank
         app_names_in_sheet = next(get_cols)[1:]
+        # generate the app times, app by app
+        app_times = ws.iter_rows(min_row=2, max_row=ws.max_row-1, min_col=2, max_col=8, values_only=True)
         for app in app_names_in_sheet:
-            #*** deal with case of new apps later***
+            #*** deal with case of new apps later*** Will have to edit app_names defined name
             if app.value in app_values_in_data:
                 # go to sheet to get values for time spent, getting all 7 values for a given app per iteration
-                wb.active = wb.get_sheet_by_name(sheet[1])
-                ws = wb.active
-
+                #wb.active = wb.get_sheet_by_name(sheet[1])
+                #ws = wb.active
+                # for duplicate named case
+                #if app_values_in_data.count(app.value) > 1:
 
                 # go back to Data sheet to write stuff in
                 wb.active = wb.get_sheet_by_name("Data")
                 ws = wb.active
-                #print(ws.cell(column=app_names_in_data[app_values_in_data.index(app.value)].column, row=top_row+0).value)
-
-                for i in range(0,7):
+                for i, time in zip(range(0,7), next(app_times)):
+                    time = convertToTime(time)
                     # if the top cell of the column to which we are about to write is empty, go ahead
                     if ws.cell(column=app_names_in_data[app_values_in_data.index(app.value)].column, row=top_row+i).value is None:
                         # write in the time data under the column header corresponding to the app name, over 7 rows
-                        ws.cell(column=app_names_in_data[app_values_in_data.index(app.value)].column, row=top_row+i, value="done")
+                        ws.cell(column=app_names_in_data[app_values_in_data.index(app.value)].column, row=top_row+i, value=time)
                     # the cell will not be empty if the app name is a duplicate. In this case, find it and
                     # write data over there instead
                     else:
                         if app_values_in_data.count(app.value) > 1:
                             # insert data at next occurrence of app name; start searching through app list starting
                             # one position after first occurrence
-                            ws.cell(column=app_names_in_data[app_values_in_data.index(app.value, app_values_in_data.index(app.value)+1)].column, row=top_row+i, value="done")
-                        # else: ***cae of a new app***
+                            ws.cell(column=app_names_in_data[app_values_in_data.index(app.value, app_values_in_data.index(app.value)+1)].column, row=top_row+i, value=time)
+                        # else: ***case of a new app***
 
     wb.save(path)
 
