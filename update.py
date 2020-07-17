@@ -1,6 +1,7 @@
 # run this code to generate an updated graph of screentime usage
 
-from openpyxl import load_workbook
+from os.path import isfile
+from openpyxl import load_workbook, workbook
 from re import search, findall
 from math import floor
 from datetime import date, time, timedelta
@@ -9,9 +10,6 @@ hist_path = "screentime_tracker/HistoryReport.xlsx"
 data_path = "screentime_tracker/AppData.xlsx"
 # wb is short for workbook
 wbh = load_workbook(hist_path)
-wbd = load_workbook(data_path)
-wbd.active = wbd.get_sheet_by_name("Data")
-wsd = wbd.active
 
 def sheetDates(sheet_dates):
     # creates a tupled list of all sheets generated from Samsung app in the form (date, name), where
@@ -39,6 +37,8 @@ def defName(defined_name_in_wb):
     return wsd[coord][0]
 
 def convertToTime(time_str):
+    # converts a string into a Datetime.time object
+
     time_str = str(time_str)
     h,m,s = 0,0,0
     # if unit of time (h/m/s) is not present in cell (i.e. was not used long enough or was used for exactly
@@ -60,18 +60,31 @@ def intToExcelCol(num):
     return str(first) + str(second)
 
 def main():
-    # get list of (date, name) tuples for each sheet
+    if not isfile(data_path):
+        # create file
+    wbd = load_workbook(data_path)
+    wbd.active = wbd.get_sheet_by_name("Data")
+    wsd = wbd.active
+
+    '''
+    # get list of (date, name) tuples for each sheet frmo sheetDates()
     sheet_dates = []
     sheetDates(sheet_dates)
     # sort dates from the earliest to the most recent
     sheet_dates.sort(key=lambda tup: tup[1])
-
+    print(wbd.defined_names)
+    if 'time_info' not in wbd.defined_names:
+        time_info = workbook.defined_name.DefinedName('time_info', attr_text='Sheet!$A$2:$C$2')
+        wbd.defined_names.append(time_info)
+        wsd['$A$2'] = 'Season'
+        wsd['$B$2'] = 'DOTW'
+        wsd['$C$2'] = 'Date'
     # get the most recent date recorded in Data
     # assumes order of time_info cells is Season, DOTW, Date but does not assume their coordinates in the sheet
     time_info_cells = defName('time_info')
     most_recent_data_date = wsd.cell(column=time_info_cells[2].column, row=wsd.max_row).value
-    # only continue if Data sheet was originally populated with some date
-    if most_recent_data_date != "Date":
+    # only continue if Data sheet was originally populated with some date'''
+    '''if most_recent_data_date != "Date":
         # convert from datetime.datetime to datetime.date
         most_recent_data_date = date(most_recent_data_date.year, most_recent_data_date.month, most_recent_data_date.day)
         get_later_date = (date[0] for date in sheet_dates)
@@ -82,8 +95,8 @@ def main():
         # delete sheets from sheet_dates that are from dates prior to the most recent date in Data, i.e.
         # their values have already been added
         if i > 0:
-            del sheet_dates[:i]
-    
+            del sheet_dates[:i]''''''
+    print(sheet_dates)
     # get a tuple with all the app cells in the Data sheet
     app_names_in_data = defName('app_names')
     # make a list for app values
@@ -166,18 +179,18 @@ def main():
             # dests is a tuple generator of (worksheet title, cell range)
             dests = defined.destinations
             _, coord = next(dests)
-            first_cell = str(coord[0:3])
-            last_cell = str(wsd.cell(column=wbd.max_col, row=2).coordinate)
+            first_cell = str(coord[0:4])
+            last_cell = str(wsd.cell(column=wsd.max_column, row=2).coordinate)
             wbd.defined_names.delete('app_names')
             # replace app_names with larger range including new apps for next iteration
-            new_range = wbd.defined_name.DefinedName('app_names', attr_text='Sheet!' + first_cell + ':'/
-                                 + last_cell)
-            wb.defined_names.append(new_range)
+            new_range = workbook.defined_name.DefinedName('app_names', attr_text='Sheet!' + first_cell + ':' \
+                        + last_cell)
+            wbd.defined_names.append(new_range)
 
 
 
 
-    wbd.save(data_path)
+    wbd.save(data_path)'''
 
     '''
     TODO:
