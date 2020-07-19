@@ -1,6 +1,5 @@
 # run this code to generate an updated graph of screentime usage
 
-from os.path import isfile
 from openpyxl import load_workbook, workbook
 from re import search, findall
 from math import floor
@@ -10,6 +9,9 @@ hist_path = "screentime_tracker/HistoryReport.xlsx"
 data_path = "screentime_tracker/AppData.xlsx"
 # wb is short for workbook
 wbh = load_workbook(hist_path)
+wbd = load_workbook(data_path)
+wbd.active = wbd.get_sheet_by_name("Data")
+wsd = wbd.active
 
 def sheetDates(sheet_dates):
     # creates a tupled list of all sheets generated from Samsung app in the form (date, name), where
@@ -25,6 +27,39 @@ def sheetDates(sheet_dates):
             # append date object from sheet name with the sheet name. Date objects are in the form y,m,d
             sheet_dates.append((date(int(name[6:10]), int(name[3:5]), int(name[0:2])), name))
 
+def initTimeInfo():
+    wsd['A1'] = 'time_info'
+    wsd['$A$2'] = 'Season'
+    wsd['$B$2'] = 'DOTW'
+    wsd['$C$2'] = 'Date'
+
+def disregardOlderSheets(most_recent_data_date, sheet_dates):
+    # convert from datetime.datetime to datetime.date
+    most_recent_data_date = date(most_recent_data_date.year, most_recent_data_date.month, most_recent_data_date.day)
+    get_later_date = (date[0] for date in sheet_dates)
+    i = 0
+    while i < len(sheet_dates) and next(get_later_date) <= most_recent_data_date:
+        i = i+1
+        print(i)
+    # delete sheets from sheet_dates that are from dates prior to the most recent date in Data, i.e.
+    # their values have already been added
+    if i > 0:
+        del sheet_dates[:i]
+    return sheet_dates
+
+def initAppInfo(sheet_dates):
+    wsd['D1'] = 'app_info'
+    # get the oldest sheet
+    wbh.active = wbh.get_sheet_by_name(sheet_dates[0][1])
+    wsh = wbh.active
+    # max_row row value is a total row, so skip it
+    get_cols = wsh.iter_cols(min_row=0, max_row=wsh.max_row-1, values_only=True)
+    # dealing with column of apps. Skip over first cell, which is blank and the last few, which have other info
+    app_names_in_sheet = next(get_cols)[1:-3]
+    for app, i in zip(app_names_in_sheet, range(0, len(app_names_in_sheet))):
+        wsd.cell(column=i+4, row=2, value=app)
+
+# SHOULD NOT NEED
 def defName(defined_name_in_wb):
     # returns a tuple containing all the cell values present in the Data sheet in a defined name
 
@@ -37,7 +72,7 @@ def defName(defined_name_in_wb):
     return wsd[coord][0]
 
 def convertToTime(time_str):
-    # converts a string into a Datetime.time object
+    # converts a string from a cell in HistoryReport into a Datetime.time object
 
     time_str = str(time_str)
     h,m,s = 0,0,0
@@ -60,43 +95,25 @@ def intToExcelCol(num):
     return str(first) + str(second)
 
 def main():
-    if not isfile(data_path):
-        # create file
-    wbd = load_workbook(data_path)
-    wbd.active = wbd.get_sheet_by_name("Data")
-    wsd = wbd.active
-
-    '''
-    # get list of (date, name) tuples for each sheet frmo sheetDates()
+    # get list of (date, name) tuples for each sheet from sheetDates()
     sheet_dates = []
     sheetDates(sheet_dates)
     # sort dates from the earliest to the most recent
-    sheet_dates.sort(key=lambda tup: tup[1])
-    print(wbd.defined_names)
-    if 'time_info' not in wbd.defined_names:
-        time_info = workbook.defined_name.DefinedName('time_info', attr_text='Sheet!$A$2:$C$2')
-        wbd.defined_names.append(time_info)
-        wsd['$A$2'] = 'Season'
-        wsd['$B$2'] = 'DOTW'
-        wsd['$C$2'] = 'Date'
-    # get the most recent date recorded in Data
-    # assumes order of time_info cells is Season, DOTW, Date but does not assume their coordinates in the sheet
-    time_info_cells = defName('time_info')
-    most_recent_data_date = wsd.cell(column=time_info_cells[2].column, row=wsd.max_row).value
-    # only continue if Data sheet was originally populated with some date'''
-    '''if most_recent_data_date != "Date":
-        # convert from datetime.datetime to datetime.date
-        most_recent_data_date = date(most_recent_data_date.year, most_recent_data_date.month, most_recent_data_date.day)
-        get_later_date = (date[0] for date in sheet_dates)
-        i = 0
-        while i < len(sheet_dates) and next(get_later_date) <= most_recent_data_date:
-            i = i+1
-            print(i)
-        # delete sheets from sheet_dates that are from dates prior to the most recent date in Data, i.e.
-        # their values have already been added
-        if i > 0:
-            del sheet_dates[:i]''''''
+    sheet_dates.sort(key=lambda tup: tup[0])
+    # initialize time_info
+    if wsd['A1'].value != 'time_info':
+        initTimeInfo()
+    time_info_cells = wsd['A2:C2']
+    # get the most recent date recorded in Data. time_info_cells has all cell data in its first tuple
+    most_recent_data_date = wsd.cell(column=time_info_cells[0][2].column, row=wsd.max_row).value
+    # if Data sheet is not empty, use latest date in sheet to overwrite sheet_dates with only the newest sheets
+    if most_recent_data_date != "Date":
+        sheet_dates = disregardOlderSheets(most_recent_data_date, sheet_dates)
     print(sheet_dates)
+    # initialize app_info
+    if wsd['D1'].value != 'app_info':
+        initAppInfo(sheet_dates)
+    '''
     # get a tuple with all the app cells in the Data sheet
     app_names_in_data = defName('app_names')
     # make a list for app values
@@ -185,12 +202,12 @@ def main():
             # replace app_names with larger range including new apps for next iteration
             new_range = workbook.defined_name.DefinedName('app_names', attr_text='Sheet!' + first_cell + ':' \
                         + last_cell)
-            wbd.defined_names.append(new_range)
+            wbd.defined_names.append(new_range)'''
 
 
 
 
-    wbd.save(data_path)'''
+    wbd.save(data_path)
 
     '''
     TODO:
