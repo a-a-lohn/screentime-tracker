@@ -273,12 +273,12 @@ def main():
             #        seconds=wsd.cell(column=5, row=new_row_data+i-1).value.second)
             #else:
             #    print("false")
-
+            
             last_run_avg = wsd.cell(column=5, row=new_row_data+i-1).value
             mult_by = new_row_data+i-3
             div_by = new_row_data+i-2
             run_avg = (last_run_avg * mult_by + total) / div_by
-            print(run_avg)
+            #print(run_avg)
             wsd.cell(column=4, row=new_row_data+i, value=total)
             wsd.cell(column=5, row=new_row_data+i, value=run_avg)
 
@@ -302,7 +302,9 @@ def main():
             wbd.defined_names.append(new_range)'''
     
     # this is to deal with a bug that causes 00:00:00 times to appear as negative values in spreadsheet
-    for row in wsd.iter_rows(min_row=3, min_col=4, max_col=wsd.max_column, max_row=wsd.max_row):
+    # Note that since the total and running avg cells are of type timedelta, the bug fix is NOT applied there, so
+    # on days when phone is not used at all and total value is 00:00:00, the bug may occur and must be fixed manually
+    for row in wsd.iter_rows(min_row=3, min_col=6, max_col=wsd.max_column, max_row=wsd.max_row):
         for cell in row:
             # convert from datetime.datetime to datetime.time
             if cell.value is not None:
