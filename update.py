@@ -1,5 +1,3 @@
-# run this code to generate an updated graph of screentime usage
-
 from openpyxl import load_workbook, workbook
 from re import search, findall
 from math import floor
@@ -7,8 +5,16 @@ import datetime
 # do this to shorten method call
 from datetime import date, timedelta
 
-hist_path = "screentime_tracker/HistoryReport.xlsx"
-data_path = "screentime_tracker/AppData.xlsx"
+''' things to modify if adding a new column to beginning Data:
+-if statement to determine if running initAppInfo()
+-initAppInfo() (2 locations)
+-for loop populating app_cells_in_data
+-for loop iterating through times to calculate total for day
+'''
+
+hist_path = r"/mnt/c/Users/Aaron/OneDrive - McGill University/Programming/HistoryReport.xlsx"
+data_path = r"/mnt/c/Users/Aaron/OneDrive - McGill University/Programming/screentime_tracker/AppData.xlsx"
+
 # wb is short for workbook
 wbh = load_workbook(hist_path)
 wbd = load_workbook(data_path)
@@ -49,18 +55,18 @@ def disregardOlderSheets(most_recent_data_date, sheet_dates):
     return sheet_dates
 
 def initAppInfo(sheet_dates):
-    wsd['D1'] = 'app_info'
+    wsd['F1'] = 'app_info'
     # get the oldest sheet
     wbh.active = wbh.get_sheet_by_name(sheet_dates[0][1])
     wsh = wbh.active
-    # max_row row value is a total row, so skip it
-    get_cols = wsh.iter_cols(min_row=0, max_row=wsh.max_row-1, values_only=True)
-    # dealing with column of apps. Skip over first cell, which is blank and the last few, which have other info
-    app_names_in_sheet = next(get_cols)[1:-3]
+    # Skip over first cell, which is blank and the last few, which have other info
+    get_cols = wsh.iter_cols(min_row=2, max_row=wsh.max_row-4, values_only=True)
+    # dealing with column of apps
+    app_names_in_sheet = next(get_cols)
     for app, i in zip(app_names_in_sheet, range(0, len(app_names_in_sheet))):
-        wsd.cell(column=i+4, row=2, value=app)
+        wsd.cell(column=i+6, row=2, value=app)
 
-# SHOULD NOT NEED
+# UNUSED
 def defName(defined_name_in_wb):
     # returns a tuple containing all the cell values present in the Data sheet in a defined name
 
@@ -87,7 +93,7 @@ def convertToTime(time_str):
         s = int(findall("\d{1,2}s", time_str)[0][:-1])
     return datetime.time(h,m,s)
     
-# SHOULD NOT NEED
+# UNUSED
 def intToExcelCol(num):
     if num <= 26:
         return str(chr(num+64))
@@ -95,115 +101,191 @@ def intToExcelCol(num):
     second = chr(num % 27 + 65)
     return str(first) + str(second)
 
+# run this code to generate an updated graph of screentime usage
+'''
+TODO:
+-add 'season' input option, asking if same season applies throughout and option to use past season
+-allow data to be added from any day, not just Friday
+-add groups so apps do not all show up individually
+'''
+
 def main():
     # get list of (date, name) tuples for each sheet from sheetDates()
     sheet_dates = []
     sheetDates(sheet_dates)
     # sort dates from the earliest to the most recent
     sheet_dates.sort(key=lambda tup: tup[0])
+
     # initialize time_info
     if wsd['A1'].value != 'time_info':
         initTimeInfo()
     time_info_cells = wsd['A2:C2']
+    
     # get the most recent date recorded in Data. time_info_cells has all cell data in its first tuple
     most_recent_data_date = wsd.cell(column=time_info_cells[0][2].column, row=wsd.max_row).value
+    
     # if Data sheet is not empty, use latest date in sheet to overwrite sheet_dates with only the newest sheets
     if most_recent_data_date != "Date":
         sheet_dates = disregardOlderSheets(most_recent_data_date, sheet_dates)
-    print(sheet_dates)
-    # initialize app_info
-    if wsd['D1'].value != 'app_info':
+    #print(sheet_dates)
+    
+    # initialize app_info--should only be done if there are no app name column headers in Data, for whatever reason
+    if wsd['F1'].value != 'app_info':
         initAppInfo(sheet_dates)
+    
     # get a list with all the app cells in the Data sheet
     app_cells_in_data = []
-    for i in range(4, wsd.max_column+1):
+    for i in range(6, wsd.max_column+1):
         app_cells_in_data.append(wsd.cell(column=i, row=2))
+    
     # make a list for app values
     app_values_in_data = [app.value for app in app_cells_in_data]
-    # first empty row that will be populated in Data sheet
-    top_row = wsd.max_row + 1
 
+    # first empty row that will be populated in Data sheet
+    new_row_data = wsd.max_row + 1
+    new_col_data = wsd.max_column + 1
+
+    # hardcoded. Change manually when appropriate
     season = "Summer"
-    # how can I take in input?
-    #season = input("What season is it? If you do not enter one, the last season in the table will be used.")
-    #if not season:
-    #    season = 
+
+    #dict to convert DOTW number to abbreviation
     days = {0:"M", 1:"Tu", 2:"W", 3:"Th", 4:"F", 5:"Sa", 6:"Su"}
-    new_app_counter = 0
+
+    # every time a new app is added, this will be set to true to increment new_col_data
+    new_app = False
+
     for sheet in sheet_dates:
-        counter_at_start = new_app_counter
-        # start by adding the time info
+        #print(sheet)
+        app_cells_to_append = []
+        app_values_to_append = []
+
+        # 1) start by adding the time info
         for cell in time_info_cells[0]:
             if cell.value == "Season":
                 for i in range(0,7):
-                    wsd.cell(column=cell.column, row=top_row+i, value=season)
+                    wsd.cell(column=cell.column, row=new_row_data+i, value=season)
             if cell.value == "DOTW":
                 for i in range(0,7):
                     date_minus_i = sheet[0] - timedelta(days=6-i)
                     # the value is found by converting the required date (date_minus_i) to a date object,
                     # then using its weekday() attribute to query the days dictionary to return the desired
                     # string abbreviation for the day
-                    wsd.cell(column=cell.column, row=top_row+i, value=days[date(date_minus_i.year, \
+                    wsd.cell(column=cell.column, row=new_row_data+i, value=days[date(date_minus_i.year, \
                         date_minus_i.month, date_minus_i.day).weekday()])
             if cell.value == "Date":
                 for i in range(0,7):
-                    wsd.cell(column=cell.column, row=top_row+i, value=sheet[0]-timedelta(days=6-i))
+                    wsd.cell(column=cell.column, row=new_row_data+i, value=sheet[0]-timedelta(days=6-i))
 
-        # now deal with app info
+        # 2) now deal with app info. Start by working with the first hist sheet to add its data
         wbh.active = wbh.get_sheet_by_name(sheet[1])
         wsh = wbh.active
-        # max_row row value is a total row, so skip it
-        get_cols = wsh.iter_cols(min_row=0, max_row=wsh.max_row-1, values_only=True)
-        # dealing with column of apps. Skip over first cell, which is blankSkip over first cell, which is blank
-        # and the last few, which have other info
-        app_names_in_sheet = next(get_cols)[1:-3]
-        # generate the app times, app by app
-        app_times = wsh.iter_rows(min_row=2, max_row=wsh.max_row-1, min_col=2, max_col=8, values_only=True)
+
+        # Skip over first cell, which is blank and the last few, which have other info
+        get_cols = wsh.iter_cols(min_row=2, max_row=wsh.max_row-4, values_only=True)
+        # dealing with column of apps
+        app_names_in_sheet = next(get_cols)
+        #print(app_names_in_sheet)
+
+        # generate the app times, app by app, day by day
+        app_row = wsh.iter_rows(min_row=2, max_row=wsh.max_row-4, min_col=2, max_col=8, values_only=True)
+
         for app in app_names_in_sheet:
-            #*** deal with case of new apps later***
+            if new_app == True:
+                new_col_data += 1
+                new_app = False
+            
             if app in app_values_in_data:
+                #print(app)
+                app_times = next(app_row)
                 # get values for time spent, getting all 7 values for a given app per iteration
-                for i, time in zip(range(0,7), next(app_times)):
+                for i, time in zip(range(0,7), app_times):
                     time = convertToTime(time)
+                    #print(app, i, time)
+                    #print(wsd.cell(column=app_cells_in_data[app_values_in_data.index(app)].column, \
+                    #        row=new_row_data+i).value)
+                    #print(app_cells_in_data[app_values_in_data.index(app)].column, new_row_data+i)
+
                     # if the top cell of the column to which we are about to write is empty, go ahead
                     if wsd.cell(column=app_cells_in_data[app_values_in_data.index(app)].column, \
-                            row=top_row+i).value is None:
+                            row=new_row_data+i).value is None:
+                        #print("will write")
                         # write in the time data under the column header corresponding to the app name,
                         # over 7 rows
                         wsd.cell(column=app_cells_in_data[app_values_in_data.index(app)].column, \
-                            row=top_row+i, value=time)
-                    # the cell will not be empty if the app name is a duplicate. In this case, find it and
+                            row=new_row_data+i, value=time)
+                    
+                    # the cell will not be empty if the app name is an already downloaded duplicate. In this case, find it and
                     # write data over there instead
+                    elif app_values_in_data.count(app) > 1:
+                        # insert data at next occurrence of app name; start searching through app list,
+                        # starting one position after first occurrence
+                        wsd.cell(column=app_cells_in_data[app_values_in_data.index(app, \
+                            app_values_in_data.index(app)+1)].column, row=new_row_data+i, value=time)
+                        
+                    # if this is a new app with the same name as an existing app, add it as a new app column header with the times
                     else:
-                        if app_values_in_data.count(app) > 1:
-                            # insert data at next occurrence of app name; start searching through app list \
-                            # starting one position after first occurrence
-                            wsd.cell(column=app_cells_in_data[app_values_in_data.index(app, \
-                                app_values_in_data.index(app)+1)].column, row=top_row+i, value=time)
-                        # if this is a new app with the same name as an existing app, add it as a new app
-                        # THIS IS THE SAME CODE AS ELSE BELOW
-                        else:
-                            # write in the app name as a column header
-                            wsd.cell(column=wsd.max_column+1, row=2, value=app)
-                            # write in its values
-                            for i, time in zip(range(0,7), next(app_times)):
-                                time = convertToTime(time)
-                                # max_column is now column with new app name
-                                wsd.cell(column=wsd.max_column, row=top_row+i, value=time)
-                            app_cells_in_data.append(wsd.cell(column=wsd.max_column, row=2))
-                            app_values_in_data.append(wsd.cell(column=wsd.max_column, row=2).value)
-            # if the app was only downloaded this past week and was not in the data sheet previously
+                        #print("new duplicate")
+                        # write in the app name as a column header (but only once when i==0, not 7 times)
+                        if i == 0:
+                            wsd.cell(column=new_col_data, row=2, value=app)
+                            new_app = True
+                        
+                        # write in its values
+                        wsd.cell(column=new_col_data, row=new_row_data+i, value=time)
+
+                        # append all new apps after iteratiing through them so that next sheet has updated list
+                        app_cells_to_append.append(wsd.cell(column=new_col_data, row=2))
+                        app_values_to_append.append(wsd.cell(column=new_col_data, row=2).value)
+
+            # if the app was only downloaded this past week and is not a new duplicate
             else:
                 # write in the app name as a column header
-                wsd.cell(column=wsd.max_column+1, row=2, value=app)
+                wsd.cell(column=new_col_data, row=2, value=app)
+                new_app = True
+
                 # write in its values
-                for i, time in zip(range(0,7), next(app_times)):
+                app_times = next(app_row)
+                for i, time in zip(range(0,7), app_times):
                     time = convertToTime(time)
-                    # max_column is now column with new app name
-                    wsd.cell(column=wsd.max_column, row=top_row+i, value=time)
-                app_cells_in_data.append(wsd.cell(column=wsd.max_column, row=2))
-                app_values_in_data.append(wsd.cell(column=wsd.max_column, row=2).value)
-                #new_app_counter += 1
+                    wsd.cell(column=new_col_data, row=new_row_data+i, value=time)
+                
+                app_cells_to_append.append(wsd.cell(column=new_col_data, row=2))
+                app_values_to_append.append(wsd.cell(column=new_col_data, row=2).value)
+        
+        # 3) finally, deal with total and running avg columns for each day
+        for i in range(0,7):
+            total = timedelta()
+            for time in wsd.iter_cols(min_row=new_row_data+i, max_row=new_row_data+i, \
+                min_col=6, max_col=new_col_data, values_only=True):
+                if time[0] is not None:
+                    total += timedelta(hours=time[0].hour, minutes=time[0].minute, seconds=time[0].second)
+            
+            # take the last running avg value, multiply by num of days it was calculated for, add newest day total
+            # and divide but new num of days it is being calculated for (i.e. 1 more day)
+
+            # when first implemented, this if was needed since the last running avg value was of type datetime.time
+            # instead of timedelta (last_run_avg assignment was inside else statement).
+            # Since Aug 21 2020, ALL running avg and total values are of type timedelta
+            #if isinstance(wsd.cell(column=5, row=new_row_data+i-1).value, datetime.time):
+            #    print("true")
+            #    last_run_avg = timedelta(hours=wsd.cell(column=5, row=new_row_data+i-1).value.hour, \
+            #        minutes=wsd.cell(column=5, row=new_row_data+i-1).value.minute, \
+            #        seconds=wsd.cell(column=5, row=new_row_data+i-1).value.second)
+            #else:
+            #    print("false")
+
+            last_run_avg = wsd.cell(column=5, row=new_row_data+i-1).value
+            mult_by = new_row_data+i-3
+            div_by = new_row_data+i-2
+            run_avg = (last_run_avg * mult_by + total) / div_by
+            print(run_avg)
+            wsd.cell(column=4, row=new_row_data+i, value=total)
+            wsd.cell(column=5, row=new_row_data+i, value=run_avg)
+
+        app_cells_in_data = app_cells_in_data + app_cells_to_append
+        app_values_in_data = app_values_in_data + app_values_to_append
+        new_row_data = new_row_data + 7
+
         '''
         # lengthen app_info defined name range to include new apps from sheet, if new apps were added
         if new_app_counter + counter_at_start != new_app_counter:
@@ -218,6 +300,7 @@ def main():
             new_range = workbook.defined_name.DefinedName('app_names', attr_text='Sheet!' + first_cell + ':' \
                         + last_cell)
             wbd.defined_names.append(new_range)'''
+    
     # this is to deal with a bug that causes 00:00:00 times to appear as negative values in spreadsheet
     for row in wsd.iter_rows(min_row=3, min_col=4, max_col=wsd.max_column, max_row=wsd.max_row):
         for cell in row:
@@ -226,19 +309,9 @@ def main():
                 cell_time = datetime.time(cell.value.hour, cell.value.minute, cell.value.second)
                 #print(cell_time)
                 if cell_time == datetime.time(0,0,0):
-                    print(cell)
                     cell.value = datetime.time(0,0,0)
-
-
 
     wbd.save(data_path)
 
-    '''
-    TODO:
-    -format a Total column to capture total time from all app columns
-    -add 'season' input option, asking if same season applies throughout and option to use past season
-    -allow data to be added from any day, not just Friday
-    -add groups so apps do not all show up individually
-    '''
 if __name__ == "__main__":
     main()
