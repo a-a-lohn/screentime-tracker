@@ -4,7 +4,7 @@ from math import floor
 import datetime
 # Do this to shorten some method calls (above import is still necessary)
 from datetime import date, timedelta
-
+# IMPORTANT: May need to change relative paths below to absolute paths
 hist_path = "screentime_tracker/data/HistoryReport.xlsx"
 data_path = "screentime_tracker/data/AppData.xlsx"
 # Wb is short for workbook
@@ -40,7 +40,7 @@ def disregardOlderSheets(most_recent_data_date, sheet_dates):
         del sheet_dates[:i]
     # Make sure all sheets have been generated on Fridays, if not throw an Exception
     for weeklydate in sheet_dates:
-        if weeklydate.weekday() != 4:
+        if weeklydate[0].weekday() != 4:
             raise Exception("Not all sheets were generated on a Friday")
     return sheet_dates
 
@@ -202,9 +202,15 @@ def main():
                 min_col=6, max_col=new_col_data, values_only=True):
                 if time[0] is not None:
                     total += timedelta(hours=time[0].hour, minutes=time[0].minute, seconds=time[0].second)
+            # Make sure value is of type datetime.timedelta to perform required operations
+            if isinstance(wsd.cell(column=5, row=new_row_data+i-1).value, datetime.time):
+                last_run_avg = timedelta(hours=wsd.cell(column=5, row=new_row_data+i-1).value.hour, \
+                minutes=wsd.cell(column=5, row=new_row_data+i-1).value.minute, \
+                seconds=wsd.cell(column=5, row=new_row_data+i-1).value.second)
+            else:
+                last_run_avg = wsd.cell(column=5, row=new_row_data+i-1).value
             # Take the last running avg value, multiply by num of days it was calculated for, add newest day total
             # and divide by new num of days it is being calculated for (i.e. 1 more day)
-            last_run_avg = wsd.cell(column=5, row=new_row_data+i-1).value
             mult_by = new_row_data+i-3
             div_by = new_row_data+i-2
             run_avg = (last_run_avg * mult_by + total) / div_by

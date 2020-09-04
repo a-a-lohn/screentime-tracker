@@ -17,4 +17,4 @@ update.py is a simple program that can convert the output data of the app-usage 
 3. Overwrite the file *./data/AppData.xlsx* with a blank Excel file of the same name. Populate the file's *first row only* according to how it is shown in this example. Rename the sheet to *Data*.
 4. Make sure you are running Python3.x, and install the requirements (*pip -r install -r requirements.txt*).
 
-After this initial setup, make sure the *AppData.xslx* file is closed. Then run *update.py* to populate the spreadsheet with your app usage. Note that the *HistoryReport.xslx* file must be updated weekly, but *update.py* can be run at any time.
+After this initial setup, make sure the *AppData.xslx* file is closed. Then run *update.py* to populate the spreadsheet with your app usage. If you get an error that the Excel files cannot be found, you may need to change the relative paths in the code to absolute paths (see lines 8-9 in *update.py*). Note that the *HistoryReport.xslx* file must be updated weekly, but *update.py* can be run at any time.
