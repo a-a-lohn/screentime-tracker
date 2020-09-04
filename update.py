@@ -5,13 +5,6 @@ import datetime
 # Do this to shorten some method calls (above import is still necessary)
 from datetime import date, timedelta
 
-''' things to modify if adding a new column to beginning Data:
--if statement to determine if running initAppInfo()
--initAppInfo() (2 locations)
--for loop populating app_cells_in_data
--for loop iterating through times to calculate total for day
-'''
-
 hist_path = "screentime_tracker/data/HistoryReport.xlsx"
 data_path = "screentime_tracker/data/AppData.xlsx"
 # Wb is short for workbook
@@ -24,7 +17,6 @@ def sheetDates(sheet_dates):
     """Create a tupled list of all sheets generated from Samsung app in the form (datetime.date, name)."""    
     sheet_names = (name for name in wbh.sheetnames)
     for name in sheet_names:
-        # Having trouble using backreferences, just repeating the same group instead
         if search("^\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}$", name):
             # Append date object from sheet name with the sheet name. Date objects are in the form y,m,d
             sheet_dates.append((date(int(name[6:10]), int(name[3:5]), int(name[0:2])), name))
@@ -65,17 +57,6 @@ def initAppInfo(sheet_dates):
     for app, i in zip(app_names_in_sheet, range(0, len(app_names_in_sheet))):
         wsd.cell(column=i+6, row=2, value=app)
 
-# UNUSED
-def defName(defined_name_in_wb):
-    """Return a tuple containing all the cell values present in the Data sheet in a defined name."""
-    defined = wbd.defined_names[defined_name_in_wb]
-    # dests is a tuple generator of (worksheet title, cell range)
-    dests = defined.destinations
-    _, coord = next(dests)
-    # Strangely enough, wsd[coord] returns a single tuple with all the cells representing app names
-    # inside the first inner tuple
-    return wsd[coord][0]
-
 def convertToTime(time_str):
     """Convert a string from a cell in HistoryReport.xlsx to a Datetime.time object."""
     time_str = str(time_str)
@@ -89,21 +70,6 @@ def convertToTime(time_str):
     if search("\d{1,2}s", time_str):
         s = int(findall("\d{1,2}s", time_str)[0][:-1])
     return datetime.time(h,m,s)
-    
-# UNUSED
-def intToExcelCol(num):
-    """Convert an integer to a base-26 value written with letters, i.e. to the format Excel uses to number its columns."""
-    if num <= 26:
-        return str(chr(num+64))
-    first = chr(floor(num / 26) + 64)
-    second = chr(num % 27 + 65)
-    return str(first) + str(second)
-
-'''
-TODO:
--allow data to be added from any day, not just Friday
--add groups so apps do not all show up individually
-'''
 
 def main():
     """Generate an updated graph of screentime usage."""
@@ -177,7 +143,6 @@ def main():
         # 2) Add the app info
         wbh.active = wbh.get_sheet_by_name(sheet[1])
         wsh = wbh.active
-
         # Skip over first cell, which is blank and the last few, which have other info
         get_cols = wsh.iter_cols(min_row=2, max_row=wsh.max_row-4, values_only=True)
         # Extract column of apps
@@ -194,14 +159,8 @@ def main():
                 # Get values for time spent on app, getting all 7 weekly values for a given app
                 for i, time in zip(range(0,7), app_times):
                     time = convertToTime(time)
-                    #print(app, i, time)
-                    #print(wsd.cell(column=app_cells_in_data[app_values_in_data.index(app)].column, \
-                    #        row=new_row_data+i).value)
-                    #print(app_cells_in_data[app_values_in_data.index(app)].column, new_row_data+i)
-                    # If the top cell of the column to which we are about to write is empty, go ahead
                     if wsd.cell(column=app_cells_in_data[app_values_in_data.index(app)].column, \
                             row=new_row_data+i).value is None:
-                        #print("will write")
                         # Write in the time data under the column header corresponding to the app name,
                         # over 7 rows
                         wsd.cell(column=app_cells_in_data[app_values_in_data.index(app)].column, \
@@ -243,21 +202,8 @@ def main():
                 min_col=6, max_col=new_col_data, values_only=True):
                 if time[0] is not None:
                     total += timedelta(hours=time[0].hour, minutes=time[0].minute, seconds=time[0].second)
-            
             # Take the last running avg value, multiply by num of days it was calculated for, add newest day total
             # and divide by new num of days it is being calculated for (i.e. 1 more day)
-
-            # when first implemented, this 'if' was needed since the last running avg value was of type datetime.time
-            # instead of timedelta (last_run_avg assignment was inside else statement).
-            # Since Aug 21 2020, ALL running avg and total values are of type timedelta
-            #if isinstance(wsd.cell(column=5, row=new_row_data+i-1).value, datetime.time):
-            #    print("true")
-            #    last_run_avg = timedelta(hours=wsd.cell(column=5, row=new_row_data+i-1).value.hour, \
-            #        minutes=wsd.cell(column=5, row=new_row_data+i-1).value.minute, \
-            #        seconds=wsd.cell(column=5, row=new_row_data+i-1).value.second)
-            #else:
-            #    print("false")
-            
             last_run_avg = wsd.cell(column=5, row=new_row_data+i-1).value
             mult_by = new_row_data+i-3
             div_by = new_row_data+i-2
@@ -268,26 +214,9 @@ def main():
         app_cells_in_data = app_cells_in_data + app_cells_to_append
         app_values_in_data = app_values_in_data + app_values_to_append
         new_row_data = new_row_data + 7
-
-        '''
-        # lengthen app_info defined name range to include new apps from sheet, if new apps were added
-        if new_app_counter + counter_at_start != new_app_counter:
-            defined = wbd.defined_names['app_names']
-            # dests is a tuple generator of (worksheet title, cell range)
-            dests = defined.destinations
-            _, coord = next(dests)
-            first_cell = str(coord[0:4])
-            last_cell = str(wsd.cell(column=wsd.max_column, row=2).coordinate)
-            wbd.defined_names.delete('app_names')
-            # replace app_names with larger range including new apps for next iteration
-            new_range = workbook.defined_name.DefinedName('app_names', attr_text='Sheet!' + first_cell + ':' \
-                        + last_cell)
-            wbd.defined_names.append(new_range)'''
     
     # Due to a bug with openpyxl that causes 00:00:00 times to appear as negative values in spreadsheet, cells
     # that had this value must be repopulated with it.
-    # Note that since the total and running avg cells are of type timedelta, the bug fix is NOT applied there, so
-    # on days when phone is not used at all and total value is 00:00:00, the bug may occur and must be fixed manually
     for row in wsd.iter_rows(min_row=3, min_col=6, max_col=wsd.max_column, max_row=wsd.max_row):
         for cell in row:
             # Convert from datetime.datetime to datetime.time
