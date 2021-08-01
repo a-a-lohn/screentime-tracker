@@ -1,21 +1,6 @@
 from sys import argv
 from openpyxl import load_workbook
 from re import search, findall
-import datetime
-
-def convert_to_time(time_str:str) -> datetime.time:
-    """Convert a cell in HistoryReport.xlsx from a string to a Datetime.time object."""
-    time_str = str(time_str)
-    h,m,s = 0,0,0
-    # If unit of time (i.e. h/m/s) is not present in cell (i.e. the app was not used long enough or was used
-    # for exactly one minute, perhaps), mark as 0 for that unit
-    if search("\d{1,2}h", time_str):
-        h = int(findall("\d{1,2}h", time_str)[0][:-1])
-    if search("\d{1,2}m", time_str):
-        m = int(findall("\d{1,2}m", time_str)[0][:-1])
-    if search("\d{1,2}s", time_str):
-        s = int(findall("\d{1,2}s", time_str)[0][:-1])
-    return datetime.time(h,m,s)
 
 def convert_to_num_sec(time_str:str) -> int:
     """Convert a cell in HistoryReport.xlsx from a string to an integer indicating the number of seconds."""

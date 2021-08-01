@@ -18,9 +18,17 @@ read.transposed.xlsx <- function(file, sheetName) {
   return(dft)            
 }
 
-data<-read.transposed.xlsx(paste(
-                           "StayFree Export - Total Usage - 6_25_21.xlsx", sep=""),
+data<-read.transposed.xlsx(paste("C:\\Users\\Aaron\\OneDrive - McGill University\\Programming\\screentime-tracker\\",
+                           "StayFree Export - Total Usage - 8_1_21.xlsx", sep=""),
                            sheetName="Usage Time")
+
+time_to_int <- function(time){
+  time <- as.integer(rev(strsplit(as.character(time), "[hms]\\s?")[[1]]))
+  time3 <- c(rep(0,3))
+  time3 <- c(time, time3)
+  return(time3[1]+time3[2]*60+time3[3]*3600)
+}
+
 
 clean_data <- function(data, tot=FALSE){
   # STEP 1 - get data into table
@@ -32,12 +40,14 @@ clean_data <- function(data, tot=FALSE){
   #data <- read.xlsx(file_path, sheetName="Transposed", colClasses = "numeric")
   #data <- read.transposed.xlsx(file_path, sheetName="Usage Time")
   if(tot){
-    data <- data[1:(nrow(data)-2), c(1,ncol(data)-3)]
+    data <- data[1:(nrow(data)-2), c(1,ncol(data)-2)]
+    data[,-1] <- sapply(data[,-1], time_to_int)
     data$Total.Usage <- data$Total.Usage/3600
   } else{
     data <- data[1:(nrow(data)-2), 1:(ncol(data)-4)]
     data <- rename(data, Reminder.2 = Reminder)
     data <- rename(data, Reminder = Reminder.1)
+    data[,-1] <- apply(data[,-1], c(1,2), time_to_int)
   }
   
   data[,1] <- as.Date(data[,1], "%B %d, %Y")
@@ -47,6 +57,7 @@ clean_data <- function(data, tot=FALSE){
   # LAST DATE INCLUDED: 2020-05-05 (YYYY-MM-DD)
   #dates <- seq( start_date, end_date, by="days")
   #data <- data %>% add_column('Date'=dates, .before = 1)
+  
   return(data)
 }
 
@@ -143,7 +154,8 @@ percent <- function(x, digits = 2, format = "f", ...) {
 ggplot(to_plot2, aes(area=sum, fill=Lumped_apps, label=percent(sum/sum(sum)))) +
   geom_treemap() + geom_treemap_text()
 
-?geom_treemap_text
+
 to_plot3 <- prep_to_plot_week(data_melt, ordered_apps_glob, cutoff)
 ggplot(to_plot3, aes(x=Weekday, y=Daily_Avg_h, fill=Lumped_apps)) +
   geom_bar(stat="identity")
+  

@@ -1,4 +1,3 @@
-#library(reticulate)
 library(xlsx)
 library(tidyverse)
 library(lubridate)
@@ -8,7 +7,7 @@ library(reshape2)
 library(treemapify)
 library(GGally)
 library(AMR)
-library(FactoMineR)
+#library(FactoMineR)
 library(shiny)
 
 read.transposed.xlsx <- function(file, sheetName) {
@@ -18,19 +17,25 @@ read.transposed.xlsx <- function(file, sheetName) {
   dft <- as.data.frame(lapply(dft,type.convert))
   return(dft)            
 }
-# data<-read.transposed.xlsx(paste("C:/Users/Aaron/OneDrive - McGill University/",
-#                                  "Programming/screentime-tracker/",
-#                                  "StayFree Export - Total Usage - 7_28_21.xlsx", sep=""),
-#                            sheetName="Usage Time")
+
+time_to_int <- function(time){
+  time <- as.integer(rev(strsplit(as.character(time), "[hms]\\s?")[[1]]))
+  time3 <- c(rep(0,3))
+  time3 <- c(time, time3)
+  return(time3[1]+time3[2]*60+time3[3]*3600)
+}
 
 clean_data <- function(data, tot=FALSE){
   if(tot){
-    data <- data[1:(nrow(data)-2), c(1,ncol(data)-3)]
+    data <- data[1:(nrow(data)-2), c(1,ncol(data)-2)]
+    data[,-1] <- sapply(data[,-1], time_to_int)
     data$Total.Usage <- data$Total.Usage/3600
   } else{
     data <- data[1:(nrow(data)-2), 1:(ncol(data)-4)]
+    # Manual edit because multiple apps have the name "Reminder"
     data <- rename(data, Reminder.2 = Reminder)
     data <- rename(data, Reminder = Reminder.1)
+    data[,-1] <- apply(data[,-1], c(1,2), time_to_int)
   }
   data[,1] <- as.Date(data[,1], "%B %d, %Y")
   data <- rename(data, Date = NA.)
@@ -56,6 +61,7 @@ prepare_data <- function(data, cutoff, tot=FALSE){
              ifelse(App %in% ordered_apps[1:cutoff], App, "Other"))
   return(data_melt)
 }
+
 prep_to_plot <- function(data_melt, ordered_apps, filter_by, cutoff){
   # STEP 4 - add date filters
   data_sum <- data_melt %>% group_by(Filtered_date=floor_date(Date, filter_by), Lumped_apps) %>%
@@ -143,14 +149,12 @@ function(input, output) {
   })
   # 5 - PCA
   pca <- eventReactive(to_plot3(), {
-    if(is.null(input$numApps<=2)){return ()}
     weekday_data <- dcast(to_plot3(), Weekday~Lumped_apps, value.var = "Daily_Avg_h")
     melted_weekday <- to_plot3()[c(1:2,4)]
     prcomp(weekday_data[2:(input$numApps+1)])
   })
-  # 6 - Contrib
+  # 6 - CONTRIB
   contrib <- eventReactive(pca(), {
-    if(is.null(input$numApps<=2)){return ()}
     contrib <- data.frame(stat=rownames(pca()$rotation),pca()$rotation[,1:3])
     contrib$stat <- factor(contrib$stat, levels = contrib$stat[order(contrib$PC2^2)])
     melt(contrib)
