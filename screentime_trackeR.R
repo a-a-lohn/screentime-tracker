@@ -19,18 +19,21 @@ read.transposed.xlsx <- function(file, sheetName) {
 }
 
 data<-read.transposed.xlsx(paste("C:\\Users\\Aaron\\OneDrive - McGill University\\Programming\\screentime-tracker\\",
-                           "StayFree Export - Total Usage - 8_1_21.xlsx", sep=""),
+                           "StayFree Export - Total Usage - 8_1_21 (4).xlsx", sep=""),
                            sheetName="Usage Time")
-
 time_to_int <- function(time){
   time <- as.integer(rev(strsplit(as.character(time), "[hms]\\s?")[[1]]))
   time3 <- c(rep(0,3))
   time3 <- c(time, time3)
   return(time3[1]+time3[2]*60+time3[3]*3600)
 }
-
-
-clean_data <- function(data, tot=FALSE){
+view(clean_data(data, as.Date("07-25-21", "%m-%d-%y"), as.Date("08-01-21", "%m-%d-%y")))
+view(data)
+as.Date(data[1,1], "%B %d, %Y")
+data[data$Date >= as.Date("06-25-21", "%m-%d-%y") & data$Date <= as.Date("07-01-21", "%m-%d-%y"),]
+data[data$Date %in% as.Date("07-25-21", "%m-%d-%y"):(as.Date("08-01-21", "%m-%d-%y")+1),][1]
+as.Date("08-01-21", "%m-%d-%y")+1
+clean_data <- function(data, start, end, tot=FALSE){
   # STEP 1 - get data into table
   # data <- read_xlsx(file_path, sheet = "Transposed", col_types = "numeric")
   # data <- rename(data, Reminder = Reminder...107)
@@ -40,11 +43,11 @@ clean_data <- function(data, tot=FALSE){
   #data <- read.xlsx(file_path, sheetName="Transposed", colClasses = "numeric")
   #data <- read.transposed.xlsx(file_path, sheetName="Usage Time")
   if(tot){
-    data <- data[1:(nrow(data)-2), c(1,ncol(data)-2)]
+    data <- data[1:(nrow(data)-1), c(1,ncol(data)-2)]
     data[,-1] <- sapply(data[,-1], time_to_int)
     data$Total.Usage <- data$Total.Usage/3600
   } else{
-    data <- data[1:(nrow(data)-2), 1:(ncol(data)-4)]
+    data <- data[1:(nrow(data)-1), 1:(ncol(data)-4)]
     data <- rename(data, Reminder.2 = Reminder)
     data <- rename(data, Reminder = Reminder.1)
     data[,-1] <- apply(data[,-1], c(1,2), time_to_int)
@@ -57,7 +60,7 @@ clean_data <- function(data, tot=FALSE){
   # LAST DATE INCLUDED: 2020-05-05 (YYYY-MM-DD)
   #dates <- seq( start_date, end_date, by="days")
   #data <- data %>% add_column('Date'=dates, .before = 1)
-  
+  data <- data[data$Date %in% start:(end+1),]
   return(data)
 }
 

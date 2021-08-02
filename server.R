@@ -25,28 +25,32 @@ time_to_int <- function(time){
   return(time3[1]+time3[2]*60+time3[3]*3600)
 }
 
-clean_data <- function(data, tot=FALSE){
+clean_data <- function(data, start=NULL, end=NULL, tot=FALSE){
   if(tot){
-    data <- data[1:(nrow(data)-2), c(1,ncol(data)-2)]
+    data <- data[1:(nrow(data)-1), c(1,ncol(data)-2)]
     data[,-1] <- sapply(data[,-1], time_to_int)
     data$Total.Usage <- data$Total.Usage/3600
   } else{
-    data <- data[1:(nrow(data)-2), 1:(ncol(data)-4)]
+    data <- data[1:(nrow(data)-1), 1:(ncol(data)-4)]
     # Manual edit because multiple apps have the name "Reminder"
     data <- rename(data, Reminder.2 = Reminder)
     data <- rename(data, Reminder = Reminder.1)
+    data <- rename(data, Reminder.1 = Reminder.2)
     data[,-1] <- apply(data[,-1], c(1,2), time_to_int)
   }
   data[,1] <- as.Date(data[,1], "%B %d, %Y")
   data <- rename(data, Date = NA.)
   data <- rename_with(data, ~gsub(".", " ", .x, fixed=TRUE))
+  # if(start!=end){
+  #   data <- data[data$Date %in% start:end,]
+  # }
+  data <- data[data$Date %in% start:(end+1),]
   return(data)
 }
 
-prepare_data <- function(data, cutoff, tot=FALSE){
-  data <- clean_data(data, tot)
-  
-  # SLICE ONLY DESIRED DATES NOW IF WANT A SMALLER PORTION
+prepare_data <- function(data, cutoff, start=NULL, end=NULL, tot=FALSE){
+  # STEP 1 - clean
+  data <- clean_data(data, start, end, tot)
   # STEP 2 - melt
   data_melt <- data %>% melt(id = "Date", measure = c(-1)) %>% 
     rename(App=variable, Seconds=value) %>% mutate(App=as.character.factor(App))
@@ -112,29 +116,39 @@ percent <- function(x, digits = 2, format = "f", ...) {
   paste0(formatC(100 * x, format = format, digits = digits, ...), "%")
 }
 
-
-
+dateDiff <- 21
 
 
 function(input, output) {
   data<-eventReactive(input$file, {
     read.transposed.xlsx(input$file$datapath, sheetName="Usage Time")
   })
-
   data_melt <- eventReactive({
     data()
-    input$numApps}, {
-    prepare_data(data(), input$numApps)
+    input$numApps
+    input$startDate
+    input$endDate}, {
+    prepare_data(data(), input$numApps, input$startDate, input$endDate)
   })
   ordered_apps_glob <- eventReactive(data_melt(), {
     data_melt() %>% group_by(App) %>% summarise(Avg = mean(Seconds)) %>%
       arrange(desc(Avg)) %>% pull(App)
   })
+  startDate <- eventReactive(data(), {
+    as.Date(data()[1,1], "%B %d, %Y")
+  })#, ignoreInit=T)
+  endDate <- eventReactive(data(), {
+    as.Date(data()[nrow(data())-1,1], "%B %d, %Y")
+  })#, ignoreInit=T)
   
   # 1 - AREA GRAPH
   to_plot <- eventReactive(ordered_apps_glob(), {
-    prep_to_plot(data_melt(), ordered_apps_glob(), "week", input$numApps)
-  })#, ignoreInit = TRUE)
+    if(input$endDate-input$startDate>dateDiff){#} || input$endDate==input$startDate){
+      prep_to_plot(data_melt(), ordered_apps_glob(), "week", input$numApps)
+    } else {
+      prep_to_plot(data_melt(), ordered_apps_glob(), "day", input$numApps)
+    }
+  })
   # 2 - TREEMAP
   to_plot2 <- eventReactive(ordered_apps_glob(), {
     prep_to_plot_tree(data_melt(), ordered_apps_glob(), input$numApps)
@@ -144,8 +158,11 @@ function(input, output) {
     prep_to_plot_week(data_melt(), ordered_apps_glob(), input$numApps)
   })
   # 4 - WEEKLY BAR GRAPH OVER TIME
-  data_tot <- eventReactive(data(), {
-    clean_data(data(), TRUE)
+  data_tot <- eventReactive({
+    data()
+    input$startDate
+    input$endDate}, {
+    clean_data(data(), input$startDate, input$endDate, tot=TRUE)
   })
   # 5 - PCA
   pca <- eventReactive(to_plot3(), {
@@ -160,6 +177,20 @@ function(input, output) {
     melt(contrib)
   })
   
+  output$numApps <- renderUI({
+    if(is.null(input$file)){return()}
+    sliderInput('numApps', 'Number of apps', value = min(10, ncol(data())/2),
+                min = 2, max = min(20, ncol(data())))
+  })
+  output$startDate <- renderUI({
+    dateInput('startDate', 'Start date', value=startDate(),
+              min=startDate(), max=input$endDate)
+  })
+  output$endDate <- renderUI({
+    dateInput('endDate', 'End date', value=endDate(),
+              min=input$startDate, max=endDate())
+  })
+  
   # output$plot1 <- renderPlot({
   #   par(mar = c(5.1, 4.1, 0, 1))
   #   ggplot(to_plot(), aes(Filtered_date, Daily_Avg_h, fill=Lumped_apps)) + 
@@ -167,32 +198,46 @@ function(input, output) {
   #     scale_x_date(date_breaks = "1 month", labels = date_format("%m-%Y"))
   # })
   output$plot2 <- renderPlot({
+    if(is.null(input$file)){return()}
     ggplot(to_plot2(), aes(area=sum, fill=Lumped_apps, label=percent(sum/sum(sum)))) +
       geom_treemap() + geom_treemap_text()
   })
   output$plot3 <- renderPlot({
+    if(is.null(input$file)){return()}
     ggplot(to_plot3(), aes(x=Weekday, y=Daily_Avg_h, fill=Lumped_apps)) +
       geom_bar(stat="identity")
   })
   output$plot4 <- renderPlot({
-    ggplot() +
-      geom_bar(data=to_plot(),
-               aes(Filtered_date, Daily_Avg_h, fill=Lumped_apps),stat="identity") +
-      geom_line(data=data_tot(), aes(Date, y=rollmean(`Total Usage`, 7, na.pad = T), colour='7 day rolling average')) +
-      geom_line(data=data_tot(), aes(Date, y=cummean(`Total Usage`), colour='Cumulative average')) +
-      scale_colour_manual("", values = c("7 day rolling average"="black",
-                                         "Cumulative average"="blue")) +
-      labs(x = "Month", y = "Daily time usage averaged over week (hours)",
-           title = "Daily phone time usage") +
-      scale_x_date(date_breaks = "1 month", labels = date_format("%m-%y"))
+    if(is.null(input$file)){return()}
+    if(input$endDate-input$startDate>dateDiff){#} || input$endDate==input$startDate){
+      ggplot() +
+        geom_bar(data=to_plot(),
+                 aes(Filtered_date, Daily_Avg_h, fill=Lumped_apps),stat="identity") +
+        geom_line(data=data_tot(), aes(Date, y=rollmean(`Total Usage`, 7, na.pad = T), colour='7 day rolling average')) +
+        geom_line(data=data_tot(), aes(Date, y=cummean(`Total Usage`), colour='Cumulative average')) +
+        scale_colour_manual("", values = c("7 day rolling average"="black",
+                                           "Cumulative average"="blue")) +
+        labs(x = "Month", y = "Daily time usage averaged over week (hours)",
+             title = "Daily phone time usage") +
+        scale_x_date(date_breaks = "1 month", labels = date_format("%m-%y")) 
+    } else {
+      ggplot() +
+        geom_bar(data=to_plot(),
+                 aes(Filtered_date, Daily_Avg_h, fill=Lumped_apps),stat="identity") +
+        geom_line(data=data_tot(), aes(Date, y=cummean(`Total Usage`), colour='Cumulative average')) +
+        scale_colour_manual("", values = c("Cumulative average"="blue")) +
+        labs(x = "Day", y = "Daily time usage",
+             title = "Daily phone time usage") +
+        scale_x_date(date_breaks = "1 day", labels = date_format("%m-%d"))
+    }
   })
   output$pca <- renderPlot({
-    if(input$numApps<=1){return ()}
+    if(is.null(input$file) || input$numApps<=1 || input$endDate-input$startDate<7){return ()}
     ggplot_pca(pca(), labels = c("Sunday", "Monday", "Tuesday", "Wednesday",
                                "Thursday", "Friday", "Saturday"))
   })
   output$contrib <- renderPlot({
-    if(input$numApps<=2){return ()}
+    if(is.null(input$file) || input$numApps<=2 || input$endDate-input$startDate<7){return ()}
     ggplot(contrib(), aes(x=stat, fill=variable, y=value)) +
       geom_bar(stat="identity", position=PositionDodge) +
       facet_grid(~variable) + theme(legend.position = "top",
