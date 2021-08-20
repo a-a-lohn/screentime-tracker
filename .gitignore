@@ -1,6 +1,2 @@
-**/*.pyc
-**/.pylintrc
-**/__pycache__/
-**/data/~*
 *.xlsx
 sample/

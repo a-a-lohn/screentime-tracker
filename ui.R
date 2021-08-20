@@ -1,15 +1,15 @@
 library(shiny)
 
 fluidPage(
-  headerPanel('Screentime Tracker'),
+  headerPanel('ScreenTime Tracker'),
   sidebarPanel(
     fileInput('file', 'StayFree Export - Total Usage file',
               accept = c('.xlsx', 'xls')),
     uiOutput('numApps'),
-    uiOutput('startDate'),
-    uiOutput('endDate')
+    #uiOutput('startDate'),
+    #uiOutput('endDate')
+    uiOutput('dateRange')
     ),
-  # WHAT IF USER HAS <20 APPS?
   #sliderInput('numApps', 'Number of apps', 10, min = 1, max = 20),
   #uiOutput('dateRange')
   # dateRangeInput('dateRange', 'Date range', start = Sys.Date()-7, end = Sys.Date(),
@@ -17,8 +17,8 @@ fluidPage(
   mainPanel(
     # plotOutput('plot1'),
     plotOutput('plot4'),
-    plotOutput('plot2'),
     plotOutput('plot3'),
+    plotOutput('plot2'),
     plotOutput('pca'),
     plotOutput('contrib')
   )
