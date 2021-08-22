@@ -18,22 +18,140 @@ read.transposed.xlsx <- function(file, sheetName) {
   return(dft)            
 }
 
-data<-read.transposed.xlsx(paste("C:\\Users\\Aaron\\OneDrive - McGill University\\Programming\\screentime-tracker\\",
-                           "StayFree Export - Total Usage - 8_1_21 (4).xlsx", sep=""),
+data1<-read.transposed.xlsx(paste("C:\\Users\\Aaron\\OneDrive - McGill University\\Programming\\screentime-tracker\\",
+                           "StayFree Export - Total Usage - 8_20_21.xlsx", sep=""),
                            sheetName="Usage Time")
-time_to_int <- function(time){
-  time <- as.integer(rev(strsplit(as.character(time), "[hms]\\s?")[[1]]))
-  time3 <- c(rep(0,3))
-  time3 <- c(time, time3)
-  return(time3[1]+time3[2]*60+time3[3]*3600)
+data1<-clean_data(data1, as.Date('08-01-20', "%m-%d-%y"), as.Date('08-20-21', "%m-%d-%y"))
+data1<-data1[,1:10]
+data2<-read.transposed.xlsx(paste("C:\\Users\\Aaron\\OneDrive - McGill University\\Programming\\screentime-tracker\\",
+                                  "StayFree Export - Total Usage - 8_20_21 (2).xlsx", sep=""),
+                            sheetName="Usage Time")
+data2<-clean_data(data2, as.Date('08-01-20', "%m-%d-%y"), as.Date('08-20-21', "%m-%d-%y"))
+data2<-data2[,1:12]
+
+data3<-read.transposed.xlsx(paste("C:\\Users\\Aaron\\OneDrive - McGill University\\Programming\\screentime-tracker\\",
+                                  "StayFree Export - Total Usage - 8_20_21 (early).xlsx", sep=""),
+                            sheetName="Usage Time")
+#data3<-clean_data(data3, as.Date('08-01-20', "%m-%d-%y"), as.Date('08-20-21', "%m-%d-%y"))
+data3<-data3[,c(1:10,ncol(data3)-2)]
+
+data4<-read.transposed.xlsx(paste("C:\\Users\\Aaron\\OneDrive - McGill University\\Programming\\screentime-tracker\\",
+                                  "StayFree Export - Total Usage - 8_20_21 (late).xlsx", sep=""),
+                            sheetName="Usage Time")
+data4<-clean_data(data4, as.Date('08-01-20', "%m-%d-%y"), as.Date('08-20-21', "%m-%d-%y"))
+data4<-data4[,1:12]
+
+data5<-read.transposed.xlsx(paste("C:\\Users\\Aaron\\OneDrive - McGill University\\Programming\\screentime-tracker\\",
+                                  "StayFree Export - Total Usage - 8_20_21 (late+1).xlsx", sep=""),
+                            sheetName="Usage Time")
+#data5<-clean_data(data5, as.Date('08-01-20', "%m-%d-%y"), as.Date('08-20-21', "%m-%d-%y"))
+data5<-data5[,c(1:10,ncol(data5)-2)]
+
+data6<-read.transposed.xlsx(paste("C:\\Users\\Aaron\\OneDrive - McGill University\\Programming\\screentime-tracker\\",
+                                  "StayFree Export - Total Usage - 8_20_21 (later).xlsx", sep=""),
+                            sheetName="Usage Time")
+#data5<-clean_data(data5, as.Date('08-01-20', "%m-%d-%y"), as.Date('08-20-21', "%m-%d-%y"))
+data6<-data6[,c(1:10,ncol(data6)-2)]
+
+#view(data5)
+bnd <-plyr::rbind.fill(data6, data3)
+bnd[is.na(bnd)] <- "0s"
+bnd <- unique(bnd)
+bnd <- bnd[bnd$NA.!="Total Usage",]
+bnd$Total.Usage2 <- sapply(bnd$Total.Usage, time_to_int)
+bnd <- bnd[order(as.Date(bnd$NA., format="%B %d, %Y"),-bnd$Total.Usage2),]
+bnd <- bnd[,!names(bnd)=="Total.Usage2"]
+bnd <- bnd[!duplicated(bnd$NA.),]
+view(bnd)
+
+files <- c(paste("C:\\Users\\Aaron\\OneDrive - McGill University\\Programming\\screentime-tracker\\",
+                 "StayFree Export - Total Usage - 8_1_21 (2).xlsx", sep=""),
+           paste("C:\\Users\\Aaron\\OneDrive - McGill University\\Programming\\screentime-tracker\\",
+                 "StayFree Export - Total Usage - 8_20_21 (early).xlsx", sep=""))
+bnd <- data.frame()
+for(i in 1:length(files)){
+  bnd <- plyr::rbind.fill(bnd,
+                          read.transposed.xlsx(
+                            files[i], sheetName="Usage Time"))
+  bnd[is.na(bnd)] <- "0s"
+  bnd <- unique(bnd)
+  bnd <- bnd[bnd$NA.!="Total Usage",]
+  bnd$Total.Usage2 <- sapply(bnd$Total.Usage, time_to_int)
+  bnd <- bnd[order(as.Date(bnd$NA., format="%B %d, %Y"),-bnd$Total.Usage2),]
+  bnd <- bnd[,!names(bnd)=="Total.Usage2"]
+  bnd <- bnd[!duplicated(bnd$NA.),]
 }
-view(clean_data(data, as.Date("07-25-21", "%m-%d-%y"), as.Date("08-01-21", "%m-%d-%y")))
+view(bnd)
+
+data<-read.files(files)
 view(data)
-as.Date(data[1,1], "%B %d, %Y")
-data[data$Date >= as.Date("06-25-21", "%m-%d-%y") & data$Date <= as.Date("07-01-21", "%m-%d-%y"),]
-data[data$Date %in% as.Date("07-25-21", "%m-%d-%y"):(as.Date("08-01-21", "%m-%d-%y")+1),][1]
-as.Date("08-01-21", "%m-%d-%y")+1
+datac <-clean_data(data, as.Date('07-13-20', "%m-%d-%y"), as.Date('08-10-21', "%m-%d-%y"),
+                   tot=T)
+warnings()
+view(data[,-1])
+view(datac)
+read.files <- function(files){
+  bnd <- data.frame()
+  for(i in 1:length(files)){
+    bnd <- plyr::rbind.fill(bnd,
+                            read.transposed.xlsx(
+                              files[i], sheetName="Usage Time"))
+    bnd[is.na(bnd)] <- "0s"
+    bnd <- unique(bnd)
+    bnd <- bnd[bnd$NA.!="Total Usage",]
+    bnd$Total.Usage2 <- sapply(bnd$Total.Usage, time_to_int)
+    bnd <- bnd[order(as.Date(bnd$NA., format="%B %d, %Y"),-bnd$Total.Usage2),]
+    bnd <- bnd[!duplicated(bnd$NA.),]
+    bnd <- bnd[,!names(bnd)=="Total.Usage2" &
+                 !names(bnd)=="Created.by..StayFree.."] 
+    bnd <- bnd %>% select(!starts_with("Creation.date.."))
+  }
+  bnd
+}
+
+time_to_int <- function(time){
+  time <- as.character(time)
+  h<-0
+  m<-0
+  s<-0
+  if(grepl("h", time, fixed=T)){
+    h <- str_extract(time, "\\d{1,2}h")
+    h <- as.integer(substr(h, 1, nchar(h)-1))
+  }
+  if(grepl("m", time, fixed=T)){
+    m <- str_extract(time, "\\d{1,2}m")
+    m <- as.integer(substr(m, 1, nchar(m)-1))
+  }
+  if(grepl("s", time, fixed=T)){
+    s <- str_extract(time, "\\d{1,2}s")
+    s <- as.integer(substr(s, 1, nchar(s)-1))
+  }
+  return(h*3600 + m*60 + s) 
+}
+
 clean_data <- function(data, start, end, tot=FALSE){
+  if(tot){
+    #data <- data[1:(nrow(data)-1), c(1,ncol(data)-2)]#####
+    #data[,-1] <- sapply(data[,-1], time_to_int)
+    data[,-1] <- apply(data[,-1], c(1,2), time_to_int)
+    data$Total.Usage <- data$Total.Usage/3600
+  } else{
+    data <- data[,!names(data)=="Total.Usage"]
+    # Manual edit because multiple apps have the name "Reminder"
+    data <- rename(data, Reminder.2 = Reminder)
+    data <- rename(data, Reminder = Reminder.1)
+    data <- rename(data, Reminder.1 = Reminder.2)
+    
+    data[,-1] <- apply(data[,-1], c(1,2), time_to_int)
+  }
+  data[,1] <- as.Date(data[,1], "%B %d, %Y")
+  data <- rename(data, Date = NA.)
+  data <- rename_with(data, ~gsub(".", " ", .x, fixed=TRUE))
+  data <- data[data$Date %in% start:end,]
+  return(data)
+}
+
+clean_data_old <- function(data, start, end, tot=FALSE){
   # STEP 1 - get data into table
   # data <- read_xlsx(file_path, sheet = "Transposed", col_types = "numeric")
   # data <- rename(data, Reminder = Reminder...107)

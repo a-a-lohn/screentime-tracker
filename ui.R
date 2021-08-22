@@ -3,7 +3,7 @@ library(shiny)
 fluidPage(
   headerPanel('ScreenTime Tracker'),
   sidebarPanel(
-    fileInput('file', 'StayFree Export - Total Usage file',
+    fileInput('files', 'StayFree Export - Total Usage file', multiple = TRUE,
               accept = c('.xlsx', 'xls')),
     uiOutput('numApps'),
     #uiOutput('startDate'),

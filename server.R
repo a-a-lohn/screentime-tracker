@@ -8,6 +8,7 @@ library(treemapify)
 library(GGally)
 library(AMR)
 #library(FactoMineR)
+#library(plyr)
 library(shiny)
 
 read.transposed.xlsx <- function(file, sheetName) {
@@ -19,25 +20,35 @@ read.transposed.xlsx <- function(file, sheetName) {
 }
 
 time_to_int <- function(time){
-  time <- as.integer(rev(strsplit(as.character(time), "[hms]\\s?")[[1]]))
-  time3 <- c(rep(0,3))
-  time3 <- c(time, time3)
-  return(time3[1]+time3[2]*60+time3[3]*3600)
+  time <- as.character(time)
+  h<-0
+  m<-0
+  s<-0
+  if(grepl("h", time, fixed=T)){
+    h <- str_extract(time, "\\d{1,2}h")
+    h <- as.integer(substr(h, 1, nchar(h)-1))
+  }
+  if(grepl("m", time, fixed=T)){
+    m <- str_extract(time, "\\d{1,2}m")
+    m <- as.integer(substr(m, 1, nchar(m)-1))
+  }
+  if(grepl("s", time, fixed=T)){
+    s <- str_extract(time, "\\d{1,2}s")
+    s <- as.integer(substr(s, 1, nchar(s)-1))
+  }
+  return(h*3600 + m*60 + s) 
 }
 
 clean_data <- function(data, start, end, tot=FALSE){
+  data[,-1] <- apply(data[,-1], c(1,2), time_to_int)
   if(tot){
-    data <- data[1:(nrow(data)-1), c(1,ncol(data)-2)]
-    data[,-1] <- sapply(data[,-1], time_to_int)
     data$Total.Usage <- data$Total.Usage/3600
   } else{
-    data <- data[1:(nrow(data)-1), 1:(ncol(data)-4)]
+    data <- data[,!names(data)=="Total.Usage"]
     # Manual edit because multiple apps have the name "Reminder"
     data <- rename(data, Reminder.2 = Reminder)
     data <- rename(data, Reminder = Reminder.1)
     data <- rename(data, Reminder.1 = Reminder.2)
-    
-    data[,-1] <- apply(data[,-1], c(1,2), time_to_int)
   }
   data[,1] <- as.Date(data[,1], "%B %d, %Y")
   data <- rename(data, Date = NA.)
@@ -116,10 +127,28 @@ percent <- function(x, digits = 2, format = "f", ...) {
 
 dateDiff <- 21
 
+read.files <- function(files){
+  bnd <- data.frame()
+  for(i in 1:length(files[,1])){
+    bnd <- plyr::rbind.fill(bnd,
+                            read.transposed.xlsx(
+                              files[[i, 'datapath']], sheetName="Usage Time"))
+    bnd[is.na(bnd)] <- "0s"
+    bnd <- unique(bnd)
+    bnd <- bnd[bnd$NA.!="Total Usage",]
+    bnd$Total.Usage2 <- sapply(bnd$Total.Usage, time_to_int)
+    bnd <- bnd[order(as.Date(bnd$NA., format="%B %d, %Y"),-bnd$Total.Usage2),]
+    bnd <- bnd[!duplicated(bnd$NA.),]
+    bnd <- bnd[,!names(bnd)=="Total.Usage2" &
+               !names(bnd)=="Created.by..StayFree.."]
+    bnd <- bnd %>% select(!starts_with("Creation.date.."))
+  }
+  bnd
+}
 
 function(input, output) {
-  data<-eventReactive(input$file, {
-    read.transposed.xlsx(input$file$datapath, sheetName="Usage Time")
+  data<-eventReactive(input$files, {
+    read.files(input$files)
   })
   
   startDateEarliest <- eventReactive(data(), {
@@ -127,7 +156,7 @@ function(input, output) {
   })
   
   endDateLatest <- eventReactive(data(), {
-    as.Date(data()[nrow(data())-1,1], "%B %d, %Y")
+    as.Date(data()[nrow(data()),1], "%B %d, %Y")
   })
   
   data_melt <- eventReactive({
@@ -185,7 +214,7 @@ function(input, output) {
   })
   
   output$numApps <- renderUI({
-    if(is.null(input$file)){return()}
+    if(is.null(input$files)){return()}
     sliderInput('numApps', 'Number of apps', value = min(10, ncol(data())/2),
                 min = 2, max = min(20, ncol(data())))
   })
@@ -213,14 +242,14 @@ function(input, output) {
               min=startDateEarliest(), max=endDateLatest()) 
   })
   
-    # output$plot1 <- renderPlot({
+  # output$plot1 <- renderPlot({
   #   par(mar = c(5.1, 4.1, 0, 1))
   #   ggplot(to_plot(), aes(Filtered_date, Daily_Avg_h, fill=Lumped_apps)) + 
   #     geom_area() + labs(x = "Month", y = "Daily time usage averaged over week (hours)") +
   #     scale_x_date(date_breaks = "1 month", labels = date_format("%m-%Y"))
   # })
   output$plot2 <- renderPlot({
-    if(is.null(input$file)){return()}
+    if(is.null(input$files)){return()}
     else {
       ggplot(to_plot2(), aes(area=sum, fill=Lumped_apps, label=percent(sum/sum(sum)))) +
         geom_treemap() + geom_treemap_text() +
@@ -228,7 +257,7 @@ function(input, output) {
     }
   })
   output$plot3 <- renderPlot({
-    if(is.null(input$file)){return()}
+    if(is.null(input$files)){return()}
     else {
       ggplot(to_plot3(), aes(x=Weekday, y=Daily_Avg_h, fill=Lumped_apps)) +
         geom_bar(stat="identity")  +
@@ -237,7 +266,7 @@ function(input, output) {
     }
   })
   output$plot4 <- renderPlot({
-    if(is.null(input$file) || is.null(input$dateRange)){return()}
+    if(is.null(input$files) || is.null(input$dateRange)){return()}
     else {
       if(input$dateRange[2]-input$dateRange[1]>dateDiff){
         ggplot() +
@@ -264,7 +293,7 @@ function(input, output) {
     }
   })
   output$pca <- renderPlot({
-    if(is.null(input$file) || is.null(input$numApps) || is.null(input$dateRange) ||
+    if(is.null(input$files) || is.null(input$numApps) || is.null(input$dateRange) ||
        input$numApps<=1 || input$dateRange[2]-input$dateRange[1]<7){return ()}
     else {
       ggplot_pca(pca(), labels = c("Sunday", "Monday", "Tuesday", "Wednesday",
@@ -272,7 +301,7 @@ function(input, output) {
     }
   })
   output$contrib <- renderPlot({
-    if(is.null(input$file) || is.null(input$numApps) || is.null(input$dateRange) ||
+    if(is.null(input$files) || is.null(input$numApps) || is.null(input$dateRange) ||
        input$numApps<=2 || input$dateRange[2]-input$dateRange[1]<7){return ()}
     else {
       ggplot(contrib(), aes(x=stat, fill=variable, y=value)) +
