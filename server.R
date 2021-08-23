@@ -1,4 +1,5 @@
-library(xlsx)
+#library(xlsx)
+library(readxl)
 library(tidyverse)
 library(lubridate)
 library(zoo)
@@ -8,15 +9,42 @@ library(treemapify)
 library(GGally)
 library(AMR)
 #library(FactoMineR)
-#library(plyr)
-library(shiny)
+
+read.files <- function(files){
+  bnd <- data.frame()
+  for(i in 1:nrow(files)){
+    bnd <- plyr::rbind.fill(bnd,
+                            read.transposed.xlsx(
+                              files[[i, 'datapath']], sheetName="Usage Time"))
+    bnd[is.na(bnd)] <- "0s"
+    bnd <- unique(bnd)
+    bnd <- bnd[bnd$Date!="Total Usage",]
+    bnd$Total.Usage2 <- sapply(bnd$Total.Usage, time_to_int)
+    bnd <- bnd[order(as.Date(bnd$Date, format="%B %d, %Y"),-bnd$Total.Usage2),]
+    bnd <- bnd[!duplicated(bnd$Date),]
+    bnd <- bnd[,!names(bnd)=="Total.Usage2"]
+  }
+  bnd
+}
 
 read.transposed.xlsx <- function(file, sheetName) {
-  df <- read.xlsx(file, sheetName = sheetName , header = FALSE)
-  dft <- as.data.frame(t(df[-1]), stringsAsFactors = FALSE) 
-  names(dft) <- df[,1] 
+  # df <- read.xlsx(file, sheetName = sheetName , header = FALSE)
+  # dft <- as.data.frame(t(df[-1]), stringsAsFactors = FALSE) 
+  # names(dft) <- df[,1] 
+  # dft <- as.data.frame(lapply(dft,type.convert))
+  # return(dft)
+  # print("file:")
+  # print(file[[1]])
+  
+  df <- read_excel(file[[1]], sheet = sheetName)
+  dft <- as.data.frame(t(df[,-1]), stringsAsFactors = FALSE)
+  dft <- dft[,1:(ncol(dft)-3)]
+  names(dft) <- df[,1][[1]][1:(nrow(df)-3)]
+  dft$Date <- rownames(dft)
+  dft <- dft[,!duplicated(c(1))]
+  dft <- dft %>% select(Date, everything())
   dft <- as.data.frame(lapply(dft,type.convert))
-  return(dft)            
+  return(dft)
 }
 
 time_to_int <- function(time){
@@ -46,12 +74,14 @@ clean_data <- function(data, start, end, tot=FALSE){
   } else{
     data <- data[,!names(data)=="Total.Usage"]
     # Manual edit because multiple apps have the name "Reminder"
-    data <- rename(data, Reminder.2 = Reminder)
-    data <- rename(data, Reminder = Reminder.1)
-    data <- rename(data, Reminder.1 = Reminder.2)
+    if("Reminder.1" %in% names(data)){
+      data <- rename(data, Reminder.2 = Reminder)
+      data <- rename(data, Reminder = Reminder.1)
+      data <- rename(data, Reminder.1 = Reminder.2)
+    }
   }
   data[,1] <- as.Date(data[,1], "%B %d, %Y")
-  data <- rename(data, Date = NA.)
+  #data <- rename(data, Date = NA.)
   data <- rename_with(data, ~gsub(".", " ", .x, fixed=TRUE))
   data <- data[data$Date %in% start:end,]
   return(data)
@@ -127,24 +157,11 @@ percent <- function(x, digits = 2, format = "f", ...) {
 
 dateDiff <- 21
 
-read.files <- function(files){
-  bnd <- data.frame()
-  for(i in 1:length(files[,1])){
-    bnd <- plyr::rbind.fill(bnd,
-                            read.transposed.xlsx(
-                              files[[i, 'datapath']], sheetName="Usage Time"))
-    bnd[is.na(bnd)] <- "0s"
-    bnd <- unique(bnd)
-    bnd <- bnd[bnd$NA.!="Total Usage",]
-    bnd$Total.Usage2 <- sapply(bnd$Total.Usage, time_to_int)
-    bnd <- bnd[order(as.Date(bnd$NA., format="%B %d, %Y"),-bnd$Total.Usage2),]
-    bnd <- bnd[!duplicated(bnd$NA.),]
-    bnd <- bnd[,!names(bnd)=="Total.Usage2" &
-               !names(bnd)=="Created.by..StayFree.."]
-    bnd <- bnd %>% select(!starts_with("Creation.date.."))
-  }
-  bnd
-}
+
+
+
+library(shiny)
+#source("screentime_tracker.R")
 
 function(input, output) {
   data<-eventReactive(input$files, {
@@ -167,7 +184,7 @@ function(input, output) {
     input$dateRange
   }, {
     print(input$dateRange)
-    prepare_data(data(), input$numApps, input$dateRange[1], input$dateRange[2])
+    prepare_data(data(), input$numApps, min(input$dateRange), max(input$dateRange))
   })
   
   ordered_apps_glob <- eventReactive(data_melt(), {
@@ -177,7 +194,7 @@ function(input, output) {
   
   # 1 - AREA GRAPH
   to_plot <- eventReactive(ordered_apps_glob(), {
-    if(input$dateRange[2]-input$dateRange[1]>dateDiff){
+    if(max(input$dateRange)-min(input$dateRange)>dateDiff){
       prep_to_plot(data_melt(), ordered_apps_glob(), "week", input$numApps)
     } else {
       prep_to_plot(data_melt(), ordered_apps_glob(), "day", input$numApps)
@@ -198,7 +215,7 @@ function(input, output) {
     # input$endDate
     input$dateRange
     }, {
-    clean_data(data(), input$dateRange[1], input$dateRange[2], tot=TRUE)
+    clean_data(data(), min(input$dateRange), max(input$dateRange), tot=TRUE)
   })
   # 5 - PCA
   pca <- eventReactive(to_plot3(), {
@@ -268,7 +285,7 @@ function(input, output) {
   output$plot4 <- renderPlot({
     if(is.null(input$files) || is.null(input$dateRange)){return()}
     else {
-      if(input$dateRange[2]-input$dateRange[1]>dateDiff){
+      if(max(input$dateRange)-min(input$dateRange)>dateDiff){
         ggplot() +
           geom_bar(data=to_plot(),
                    aes(Filtered_date, Daily_Avg_h, fill=Lumped_apps),stat="identity") +
@@ -288,13 +305,13 @@ function(input, output) {
           labs(x = "Day", y = "Daily time usage (hours)",
                title = "Daily Phone Time Usage") +
           scale_x_date(date_breaks = "1 day", labels = date_format("%m-%d"))
-          #xlim(c(input$dateRange[1]-1,input$dateRange[2]+1))
+          #xlim(c(min(input$dateRange)-1,max(input$dateRange)+1))
       }
     }
   })
   output$pca <- renderPlot({
     if(is.null(input$files) || is.null(input$numApps) || is.null(input$dateRange) ||
-       input$numApps<=1 || input$dateRange[2]-input$dateRange[1]<7){return ()}
+       input$numApps<=1 || max(input$dateRange)-min(input$dateRange)<7){return ()}
     else {
       ggplot_pca(pca(), labels = c("Sunday", "Monday", "Tuesday", "Wednesday",
                                "Thursday", "Friday", "Saturday"))
@@ -302,7 +319,7 @@ function(input, output) {
   })
   output$contrib <- renderPlot({
     if(is.null(input$files) || is.null(input$numApps) || is.null(input$dateRange) ||
-       input$numApps<=2 || input$dateRange[2]-input$dateRange[1]<7){return ()}
+       input$numApps<=2 || max(input$dateRange)-min(input$dateRange)<7){return ()}
     else {
       ggplot(contrib(), aes(x=stat, fill=variable, y=value)) +
       geom_bar(stat="identity", position=PositionDodge) +
