@@ -1,3 +1,4 @@
+library(shiny)
 #library(xlsx)
 library(readxl)
 library(tidyverse)
@@ -10,12 +11,26 @@ library(GGally)
 library(AMR)
 #library(FactoMineR)
 
-read.files <- function(files){
+read.files <- function(files, sample=FALSE, cached=FALSE){
   bnd <- data.frame()
-  for(i in 1:nrow(files)){
-    bnd <- plyr::rbind.fill(bnd,
-                            read.transposed.xlsx(
-                              files[[i, 'datapath']], sheetName="Usage Time"))
+  if(sample || cached){
+    n <- length(files)
+  } else {
+    n <- nrow(files)
+  }
+  for(i in 1:n){
+    if(sample) {
+      bnd <- plyr::rbind.fill(bnd,
+                              read.transposed.xlsx(
+                                files[[i]], sheetName="Usage Time"))
+    } else if(cached){
+      bnd <- plyr::rbind.fill(bnd, files[[i]])
+    }
+    else {
+      bnd <- plyr::rbind.fill(bnd,
+                              read.transposed.xlsx(
+                                files[[i, 'datapath']], sheetName="Usage Time")) 
+    }
     bnd[is.na(bnd)] <- "0s"
     bnd <- unique(bnd)
     bnd <- bnd[bnd$Date!="Total Usage",]
@@ -156,17 +171,52 @@ percent <- function(x, digits = 2, format = "f", ...) {
 }
 
 dateDiff <- 21
+samples <- c("data/StayFree Export - Total Usage - SAMPLE 1.xlsx",
+             "data/StayFree Export - Total Usage - SAMPLE 2.xlsx")
+cache <- as.list(rep(0, length(samples)))
 
-
-
-
-library(shiny)
-#source("screentime_tracker.R")
+placeholder <- function(input){
+  if(is.null(input)){
+    return("No file selected")
+  } else{
+    return('Using last uploaded file(s) since refresh. Drop new files here')
+  }
+}
 
 function(input, output) {
-  data<-eventReactive(input$files, {
-    read.files(input$files)
+  data<-eventReactive({
+    list(input$sampleFiles, input$files)
+  }, {
+    if(length(input$sampleFiles) > 0){
+      indices <- c()
+      for(i in 1:length(samples)){
+        if(samples[[i]] %in% input$sampleFiles){
+          indices <- c(indices, as.integer(i))
+          if(cache[[i]] == 0){
+            cache[[i]] <- read.transposed.xlsx(samples[[i]], sheetName="Usage Time")
+          }
+        }
+      }
+      read.files(cache[c(indices)], cached = TRUE)
+      
+    } else if(!is.null(input$files)){
+      read.files(input$files)
+    } else {
+      return(NULL)
+    }
   })
+
+  # input_data <- eventReactive({list(input$sampleFiles, input$files)},
+  #                             {
+  #                               if(length(input$sampleFiles) == 0){
+  #                                 eventReactive({input$files},
+  #                                               {
+  #                                                 return(input$files)
+  #                                               })
+  #                               }
+  #                               else { return(NULL)}
+  #                             })
+  
   
   startDateEarliest <- eventReactive(data(), {
     as.Date(data()[1,1], "%B %d, %Y")
@@ -230,8 +280,18 @@ function(input, output) {
     melt(contrib)
   })
   
+  output$files <- renderUI({
+    if(length(input$sampleFiles) > 0){
+      p('Unselect all sample data to be able to upload a usage file.')
+    } else{
+      return(fileInput('files', 'StayFree Export Usage File', multiple = TRUE,
+                accept = c('.xlsx', 'xls'),
+                placeholder = placeholder(input$files)))
+    }
+  })
+  
   output$numApps <- renderUI({
-    if(is.null(input$files)){return()}
+    if(is.null(data())){return()} #is.null(input$files) & is.null(input$sampleFiles)
     sliderInput('numApps', 'Number of apps', value = min(10, ncol(data())/2),
                 min = 2, max = min(20, ncol(data())))
   })
@@ -266,24 +326,25 @@ function(input, output) {
   #     scale_x_date(date_breaks = "1 month", labels = date_format("%m-%Y"))
   # })
   output$plot2 <- renderPlot({
-    if(is.null(input$files)){return()}
+    if(is.null(data())){return()}
     else {
       ggplot(to_plot2(), aes(area=sum, fill=Lumped_apps, label=percent(sum/sum(sum)))) +
         geom_treemap() + geom_treemap_text() +
-        labs(title = "Phone Time Usage by Application")
+        labs(title = "Phone Time Usage by Application", fill = "Most Popular Apps")
     }
   })
   output$plot3 <- renderPlot({
-    if(is.null(input$files)){return()}
+    if(is.null(data())){return()}
     else {
       ggplot(to_plot3(), aes(x=Weekday, y=Daily_Avg_h, fill=Lumped_apps)) +
         geom_bar(stat="identity")  +
         labs(x = "Day of Week", y = "Average time usage (hours)",
-             title = "Phone Time usage by Day of Week")
+             title = "Phone Time usage by Day of Week",
+             fill = "Most Popular Apps")
     }
   })
   output$plot4 <- renderPlot({
-    if(is.null(input$files) || is.null(input$dateRange)){return()}
+    if(is.null(data()) || is.null(input$dateRange)){return()}
     else {
       if(max(input$dateRange)-min(input$dateRange)>dateDiff){
         ggplot() +
@@ -294,7 +355,7 @@ function(input, output) {
           scale_colour_manual("", values = c("7 day rolling average"="black",
                                              "Cumulative average"="blue")) +
           labs(x = "Month", y = "Daily time usage averaged over week (hours)",
-               title = "Daily Phone Time Usage") +
+               title = "Daily Phone Time Usage", fill = "Most Popular Apps") +
           scale_x_date(date_breaks = "1 month", labels = date_format("%m-%y"))
       } else {
         ggplot() +
@@ -303,14 +364,14 @@ function(input, output) {
           geom_line(data=data_tot(), aes(Date, y=cummean(`Total Usage`), colour='Cumulative average')) +
           scale_colour_manual("", values = c("Cumulative average"="blue")) +
           labs(x = "Day", y = "Daily time usage (hours)",
-               title = "Daily Phone Time Usage") +
+               title = "Daily Phone Time Usage", fill = "Most Popular Apps") +
           scale_x_date(date_breaks = "1 day", labels = date_format("%m-%d"))
           #xlim(c(min(input$dateRange)-1,max(input$dateRange)+1))
       }
     }
   })
   output$pca <- renderPlot({
-    if(is.null(input$files) || is.null(input$numApps) || is.null(input$dateRange) ||
+    if(is.null(data()) || is.null(input$numApps) || is.null(input$dateRange) ||
        input$numApps<=1 || max(input$dateRange)-min(input$dateRange)<7){return ()}
     else {
       ggplot_pca(pca(), labels = c("Sunday", "Monday", "Tuesday", "Wednesday",
@@ -318,7 +379,7 @@ function(input, output) {
     }
   })
   output$contrib <- renderPlot({
-    if(is.null(input$files) || is.null(input$numApps) || is.null(input$dateRange) ||
+    if(is.null(data()) || is.null(input$numApps) || is.null(input$dateRange) ||
        input$numApps<=2 || max(input$dateRange)-min(input$dateRange)<7){return ()}
     else {
       ggplot(contrib(), aes(x=stat, fill=variable, y=value)) +
