@@ -1,5 +1,6 @@
 /*.xlsx
 *_rough.R
 rsconnect/
-
+*(old)*
+.Rhistory
 screentime_tracker.R

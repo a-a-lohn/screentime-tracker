@@ -11,19 +11,15 @@ library(GGally)
 library(AMR)
 #library(FactoMineR)
 
-read.files <- function(files, sample=FALSE, cached=FALSE){
+read.files <- function(files, cached=FALSE){
   bnd <- data.frame()
-  if(sample || cached){
+  if(cached){
     n <- length(files)
   } else {
     n <- nrow(files)
   }
   for(i in 1:n){
-    if(sample) {
-      bnd <- plyr::rbind.fill(bnd,
-                              read.transposed.xlsx(
-                                files[[i]], sheetName="Usage Time"))
-    } else if(cached){
+    if(cached){
       bnd <- plyr::rbind.fill(bnd, files[[i]])
     }
     else {
@@ -171,8 +167,8 @@ percent <- function(x, digits = 2, format = "f", ...) {
 }
 
 dateDiff <- 21
-samples <- c("data/StayFree Export - Total Usage - SAMPLE 1.xlsx",
-             "data/StayFree Export - Total Usage - SAMPLE 2.xlsx")
+samples <- c(#"data/StayFree Export - Total Usage - SAMPLE 1.xlsx",
+             "data/StayFree Export - Total Usage - SAMPLE.xlsx")
 cache <- as.list(rep(0, length(samples)))
 
 placeholder <- function(input){
@@ -190,6 +186,7 @@ function(input, output) {
     if(length(input$sampleFiles) > 0){
       indices <- c()
       for(i in 1:length(samples)){
+        print("used")
         if(samples[[i]] %in% input$sampleFiles){
           indices <- c(indices, as.integer(i))
           if(cache[[i]] == 0){
@@ -244,11 +241,12 @@ function(input, output) {
   
   # 1 - AREA GRAPH
   to_plot <- eventReactive(ordered_apps_glob(), {
-    if(max(input$dateRange)-min(input$dateRange)>dateDiff){
-      prep_to_plot(data_melt(), ordered_apps_glob(), "week", input$numApps)
-    } else {
-      prep_to_plot(data_melt(), ordered_apps_glob(), "day", input$numApps)
-    }
+    # if(max(input$dateRange)-min(input$dateRange)>dateDiff){
+    #   prep_to_plot(data_melt(), ordered_apps_glob(), "week", input$numApps)
+    # } else {
+    #   prep_to_plot(data_melt(), ordered_apps_glob(), "day", input$numApps)
+    # }
+    prep_to_plot(data_melt(), ordered_apps_glob(), "day", input$numApps)
   })
   # 2 - TREEMAP
   to_plot2 <- eventReactive(ordered_apps_glob(), {
@@ -282,7 +280,7 @@ function(input, output) {
   
   output$files <- renderUI({
     if(length(input$sampleFiles) > 0){
-      p('Unselect all sample data to be able to upload a usage file.')
+      p('Unselect sample data to be able to upload a usage file.')
     } else{
       return(fileInput('files', 'StayFree Export Usage File', multiple = TRUE,
                 accept = c('.xlsx', 'xls'),
@@ -316,7 +314,8 @@ function(input, output) {
   output$dateRange <- renderUI({
       dateRangeInput('dateRange', 'Date Range',
               start=startDateEarliest(), end=endDateLatest(),
-              min=startDateEarliest(), max=endDateLatest()) 
+              min=startDateEarliest(), max=endDateLatest(),
+              format="mm-dd-yyyy") 
   })
   
   # output$plot1 <- renderPlot({
@@ -349,23 +348,29 @@ function(input, output) {
       if(max(input$dateRange)-min(input$dateRange)>dateDiff){
         ggplot() +
           geom_bar(data=to_plot(),
-                   aes(Filtered_date, Daily_Avg_h, fill=Lumped_apps),stat="identity") +
-          geom_line(data=data_tot(), aes(Date, y=rollmean(`Total Usage`, 7, na.pad = T), colour='7 day rolling average')) +
-          geom_line(data=data_tot(), aes(Date, y=cummean(`Total Usage`), colour='Cumulative average')) +
-          scale_colour_manual("", values = c("7 day rolling average"="black",
+                   aes(Filtered_date, Daily_Avg_h, fill=Lumped_apps),
+                   stat="identity") +
+          geom_line(data=data_tot(), aes(Date, y=rollmeanr(`Total Usage`, 7, na.pad = T),
+                                       colour='7 day rolling average')) +
+          geom_line(data=data_tot(), aes(Date, y=cummean(`Total Usage`),
+                                         colour='Cumulative average')) +
+          scale_colour_manual("", values = c("7 day rolling average"="red",
                                              "Cumulative average"="blue")) +
-          labs(x = "Month", y = "Daily time usage averaged over week (hours)",
+          labs(x = "Date", y = "Daily time usage (hours)",#"Daily time usage averaged over week (hours)",
                title = "Daily Phone Time Usage", fill = "Most Popular Apps") +
-          scale_x_date(date_breaks = "1 month", labels = date_format("%m-%y"))
+          scale_x_date(date_breaks = "2 days", labels = date_format("%m-%d-%Y")) +
+          theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+        #?rollmean
       } else {
         ggplot() +
           geom_bar(data=to_plot(),
                    aes(Filtered_date, Daily_Avg_h, fill=Lumped_apps),stat="identity") +
           geom_line(data=data_tot(), aes(Date, y=cummean(`Total Usage`), colour='Cumulative average')) +
           scale_colour_manual("", values = c("Cumulative average"="blue")) +
-          labs(x = "Day", y = "Daily time usage (hours)",
+          labs(x = "Date", y = "Daily time usage (hours)",
                title = "Daily Phone Time Usage", fill = "Most Popular Apps") +
-          scale_x_date(date_breaks = "1 day", labels = date_format("%m-%d"))
+          scale_x_date(date_breaks = "1 day", labels = date_format("%m-%d-%Y")) +
+          theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
           #xlim(c(min(input$dateRange)-1,max(input$dateRange)+1))
       }
     }

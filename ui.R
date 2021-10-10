@@ -7,14 +7,14 @@ fluidPage(
   sidebarPanel(
     # uiOutput('welcome'),
     checkboxGroupInput('sampleFiles',
-                       label = 'Check one or both of the boxes below to use sample data:',
+                       label = 'Check the box below to use sample data:',
                        choices = c(
-                         "Sample 1: from 05/11/20 to 17/07/21 
-                         (large - may take several seconds to load)" =
-                           "data/StayFree Export - Total Usage - SAMPLE 1.xlsx",
-                         "Sample 2: from 07/01/21 to 22/08/21 (small)" =
-                           "data/StayFree Export - Total Usage - SAMPLE 2.xlsx"),
-                       selected = c("data/StayFree Export - Total Usage - SAMPLE 1.xlsx")),
+                         # "Sample 1: from 05/11/20 to 17/07/21 
+                         # (large - may take several seconds to load)" =
+                         #   "data/StayFree Export - Total Usage - SAMPLE 1.xlsx",
+                         "Sample: from 07-01-2021 to 22-08-2021" =
+                           "data/StayFree Export - Total Usage - SAMPLE.xlsx"),
+                       selected = c("data/StayFree Export - Total Usage - SAMPLE.xlsx")),
     uiOutput('files'),
     uiOutput('numApps'),
     uiOutput('dateRange')
