@@ -312,7 +312,7 @@ function(input, output) {
   
   #https://stackoverflow.com/questions/43614708/how-to-prevent-user-from-setting-the-end-date-before-the-start-date-using-the-sh
   output$dateRange <- renderUI({
-      dateRangeInput('dateRange', 'Date Range',
+      dateRangeInput('dateRange', 'Date range',
               start=startDateEarliest(), end=endDateLatest(),
               min=startDateEarliest(), max=endDateLatest(),
               format="mm-dd-yyyy") 
@@ -329,7 +329,7 @@ function(input, output) {
     else {
       ggplot(to_plot2(), aes(area=sum, fill=Lumped_apps, label=percent(sum/sum(sum)))) +
         geom_treemap() + geom_treemap_text() +
-        labs(title = "Phone Time Usage by Application", fill = "Most Popular Apps")
+        labs(title = "Phone time usage by application", fill = "Most popular apps")
     }
   })
   output$plot3 <- renderPlot({
@@ -337,9 +337,9 @@ function(input, output) {
     else {
       ggplot(to_plot3(), aes(x=Weekday, y=Daily_Avg_h, fill=Lumped_apps)) +
         geom_bar(stat="identity")  +
-        labs(x = "Day of Week", y = "Average time usage (hours)",
-             title = "Phone Time usage by Day of Week",
-             fill = "Most Popular Apps")
+        labs(x = "Day of week", y = "Average time usage (hours)",
+             title = "Phone time usage by day of week",
+             fill = "Most popular apps")
     }
   })
   output$plot4 <- renderPlot({
@@ -357,10 +357,9 @@ function(input, output) {
           scale_colour_manual("", values = c("7 day rolling average"="red",
                                              "Cumulative average"="blue")) +
           labs(x = "Date", y = "Daily time usage (hours)",#"Daily time usage averaged over week (hours)",
-               title = "Daily Phone Time Usage", fill = "Most Popular Apps") +
+               title = "Daily phone time usage", fill = "Most popular apps") +
           scale_x_date(date_breaks = "2 days", labels = date_format("%m-%d-%Y")) +
           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-        #?rollmean
       } else {
         ggplot() +
           geom_bar(data=to_plot(),
@@ -368,7 +367,7 @@ function(input, output) {
           geom_line(data=data_tot(), aes(Date, y=cummean(`Total Usage`), colour='Cumulative average')) +
           scale_colour_manual("", values = c("Cumulative average"="blue")) +
           labs(x = "Date", y = "Daily time usage (hours)",
-               title = "Daily Phone Time Usage", fill = "Most Popular Apps") +
+               title = "Daily phone time Usage", fill = "Most popular apps") +
           scale_x_date(date_breaks = "1 day", labels = date_format("%m-%d-%Y")) +
           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
           #xlim(c(min(input$dateRange)-1,max(input$dateRange)+1))
@@ -380,7 +379,9 @@ function(input, output) {
        input$numApps<=1 || max(input$dateRange)-min(input$dateRange)<7){return ()}
     else {
       ggplot_pca(pca(), labels = c("Sunday", "Monday", "Tuesday", "Wednesday",
-                               "Thursday", "Friday", "Saturday"))
+                               "Thursday", "Friday", "Saturday")) +
+        labs(title="Biplot: Relationship between most popular apps and days of the week") +
+        theme(plot.title = element_text(hjust = 0))
     }
   })
   output$contrib <- renderPlot({
@@ -388,8 +389,9 @@ function(input, output) {
        input$numApps<=2 || max(input$dateRange)-min(input$dateRange)<7){return ()}
     else {
       ggplot(contrib(), aes(x=stat, fill=variable, y=value)) +
-      geom_bar(stat="identity", position=PositionDodge) +
-      facet_grid(~variable) + theme(legend.position = "top",
+      geom_bar(stat="identity", position=PositionDodge) + 
+      labs(title="Factor loadings of different components") +
+      facet_grid(~variable) + theme(legend.position = "right",
                                     axis.text.x = element_text(angle=90))+coord_flip()
     }
   })

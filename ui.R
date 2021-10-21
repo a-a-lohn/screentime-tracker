@@ -29,6 +29,13 @@ fluidPage(
       tabPanel("Usage by Application", plotOutput('plot2')),
       tabPanel("Advanced",
                plotOutput('pca'),
+               p("Note that the interpretation of the two axes in the biplot may
+                 be subective, and depend on the user's phone usage trends.
+                 For example, a possible interpretation for the sample data's
+                 axes are: apps used while commuting (e.g. Maps) vs. apps
+                 used while stationary (e.g. Facebook, YouTube) for the x-axis,
+                 and apps used in the middle of the week (e.g. Messages, Clock)
+                 vs. apps used around the weekend (e.g. YouTube) for the y-axis."),
                plotOutput('contrib')),
     tabPanel("Help", icon=icon("question-circle"),
              strong("How To Use This App"),
